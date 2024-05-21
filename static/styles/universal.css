@@ -1,16 +1,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
-:root {
+body {
     --serif: "PT Serif";
     --sans: "Inter";
-    --white: #fafbfc;
-    --nearwhite: #fafbfcd0;
-    --gray: #9da1a5;
-    --black: #10181f;
+
+    /* 220 deg HSV */
+    --bg: #fafbfc; /* 1% 99% */
+    --clearbg: #fafbfcd0; 
+    --shadow: #f0f2f5; /* 2% 96% */
+    --gray: #a4a9b3; /* 8% 70% */
+    --content: #12141a; /* 30% 10% */
+
+    background: var(--bg);
+}
+
+body.dark-theme {
+    --bg: #15181f; /* 30% 12% */
+    --clearbg: #242933d0;
+    --shadow: #090a0d; /* 30% 5% */
+    --gray: #41454d; /* 15% 10% */
+    --content: #f0f2f5; /* 2% 96% */
 }
 
 * {
     box-sizing: border-box;
     margin: 0;
-    padding: 0
+    padding: 0;
 }

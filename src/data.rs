@@ -1,6 +1,7 @@
-use std::{any::Any, collections::HashMap, fs::File, hash::Hash};
+use std::fs::File;
 
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
+use indexmap::IndexMap;
 use serde_json::Value;
 
 pub fn load_users() -> Vec<User> {
@@ -19,32 +20,46 @@ pub fn load_content() -> Content {
     let content_file = File::open("content/index.json").expect("failed to open index.json");
     let doc: Value = serde_json::from_reader(content_file).expect("failed to parse index.json");
 
-    let volumes: HashMap<String, Volume> = doc["volumes"]
+    let volumes: Volumes = doc["volumes"]
         .as_array()
         .unwrap()
         .into_iter()
         .map(|v| {
             let volume = v.as_str().unwrap();
-            let volume_file = File::open(format!("content/volumes/{volume}.json")).expect("failed to open volume: {volume}");
+            let volume_file = File::open(format!("content/volumes/{volume}.json"))
+                .expect("failed to open volume: {volume}");
             let doc = serde_json::from_reader(volume_file).expect("failed to parse volume");
             let volume = Volume::from_json(volume.to_owned(), &doc);
             (volume.id.clone(), volume)
         })
         .collect();
 
-    let entries: HashMap<String, Entry> = volumes.values().map(|v| v.entries.iter()).flatten().map(|e| {
-        let entry_file = File::open(format!("content/entries/{e}.json")).expect("failed to open entry");
-        let doc = serde_json::from_reader(entry_file).expect("failed to parse entry");
-        let entry = Entry::from_json(e.clone(), &doc);
-        (entry.id.clone(), entry)
-    }).collect();
+    let entries: Entries = volumes
+        .values()
+        .map(|v| v.entries.iter())
+        .flatten()
+        .map(|e| {
+            let entry_file =
+                File::open(format!("content/entries/{e}.json")).expect("failed to open entry");
+            let doc = serde_json::from_reader(entry_file).expect("failed to parse entry");
+            let entry = Entry::from_json(e.clone(), &doc);
+            (entry.id.clone(), entry)
+        })
+        .collect();
 
-    let sections = entries.values().map(|e| e.sections.iter()).flatten().map(|s| {
-        let section_file = File::open(format!("content/sections/{s}.json")).expect("failed to open section");
-        let doc: Value = serde_json::from_reader(section_file).expect("failed to parse section");
-        let section = Section::from_json(*s, &doc);
-        (*s, section)
-    }).collect();
+    let sections = entries
+        .values()
+        .map(|e| e.sections.iter())
+        .flatten()
+        .map(|s| {
+            let section_file =
+                File::open(format!("content/sections/{s}.json")).expect("failed to open section");
+            let doc: Value =
+                serde_json::from_reader(section_file).expect("failed to parse section");
+            let section = Section::from_json(*s, &doc);
+            (*s, section)
+        })
+        .collect();
 
     Content {
         volumes,
@@ -65,8 +80,7 @@ pub struct User {
     pub last_name: String,
     pub privilege: UserPrivilege,
     pub codes: Vec<String>,
-    pub entries_read: Vec<(String, NaiveDateTime)>,
-    pub sections_read: Vec<(u64, NaiveDateTime)>,
+    pub sections_read: Option<Vec<(u64, NaiveDateTime)>>,
 }
 
 impl User {
@@ -88,34 +102,23 @@ impl User {
             .into_iter()
             .map(|code| code.as_str().unwrap().to_owned())
             .collect();
-        let entries_read = json["entries_read"]
-            .as_array()
-            .unwrap()
-            .into_iter()
-            .map(|entry| {
-                (
-                    entry[0].as_str().unwrap().to_owned(),
-                    NaiveDateTime::parse_from_str(entry[1].as_str().unwrap(), "%F").unwrap(),
-                )
-            })
-            .collect();
-        let sections_read = json["sections_read"]
-            .as_array()
-            .unwrap()
-            .into_iter()
-            .map(|entry| {
-                (
-                    entry[0].as_u64().unwrap(),
-                    NaiveDateTime::parse_from_str(entry[1].as_str().unwrap(), "%F").unwrap(),
-                )
-            })
-            .collect();
+        let sections_read = json.get("sections_read").map(|s| {
+            s.as_array()
+                .unwrap()
+                .into_iter()
+                .map(|entry| {
+                    (
+                        entry[0].as_u64().unwrap(),
+                        NaiveDateTime::parse_from_str(entry[1].as_str().unwrap(), "%F").unwrap(),
+                    )
+                })
+                .collect()
+        });
         User {
             first_name,
             last_name,
             privilege,
             codes,
-            entries_read,
             sections_read,
         }
     }
@@ -131,11 +134,15 @@ fn get_user<'a>(users: &'a [User], name: &str) -> Option<&'a User> {
     users.iter().find(|user| user.full_name() == name)
 }
 
+pub type Volumes = IndexMap<String, Volume>;
+pub type Entries = IndexMap<String, Entry>;
+pub type Sections = IndexMap<u32, Section>;
+
 #[derive(Clone)]
 pub struct Content {
-    pub volumes: HashMap<String, Volume>,
-    pub entries: HashMap<String, Entry>,
-    pub sections: HashMap<u32, Section>,
+    pub volumes: Volumes,
+    pub entries: Entries,
+    pub sections: Sections,
 }
 
 #[derive(Clone)]
@@ -193,6 +200,10 @@ impl Volume {
             entries,
         }
     }
+
+    pub fn entries<'a>(&self, content: &'a Content) -> Vec<&'a Entry> {
+        self.entries.iter().map(|e| &content.entries[e]).collect()
+    }
 }
 
 #[derive(Clone)]
@@ -202,7 +213,8 @@ pub struct Entry {
     parent_volume: (String, usize),
     author: String,
     pub description: String,
-    pub sections: Vec<u32>,
+    pub summary: String,
+    sections: Vec<u32>,
 }
 
 impl Entry {
@@ -225,6 +237,7 @@ impl Entry {
             parent_volume[1].as_u64().unwrap() as usize,
         );
         let author = json["author"].as_str().unwrap().to_owned();
+        let summary = json["summary"].as_str().unwrap().to_owned();
         let description = json["description"].as_str().unwrap().to_owned();
         let sections = json["sections"]
             .as_array()
@@ -238,12 +251,16 @@ impl Entry {
             name,
             parent_volume,
             author,
+            summary,
             description,
             sections,
         }
     }
-}
 
+    pub fn sections<'a>(&self, content: &'a Content) -> Vec<&'a Section> {
+        self.sections.iter().map(|s| &content.sections[s]).collect()
+    }
+}
 #[derive(Clone)]
 pub enum Completion {
     Missing,
@@ -263,7 +280,7 @@ pub struct Section {
     parent_entry: String,
     pub status: Completion,
     pub date: Timestamp,
-    pub description: Option<String>,
+    pub summary: String,
     pub perspectives: Vec<u32>,
     pub comments: Vec<Comment>,
 }
@@ -286,9 +303,7 @@ impl Section {
             Ok(date) => Timestamp::Date(date),
             Err(_) => Timestamp::Custom(date.to_owned()),
         };
-        let description = json
-            .get("description")
-            .map(|d| d.as_str().unwrap().to_owned());
+        let summary = json["summary"].as_str().unwrap().to_owned();
         let comments = json["comments"]
             .as_array()
             .unwrap()
@@ -307,7 +322,7 @@ impl Section {
             parent_entry,
             status,
             date,
-            description,
+            summary,
             perspectives,
             comments,
         }

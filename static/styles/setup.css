@@ -1,0 +1,104 @@
+@import url("/style/universal.css");
+
+h1 {
+    margin-top: 24px;
+    font: bold 28px var(--serif);
+    font-style: italic;
+    margin-bottom: 24px;
+    color: var(--content);
+}
+
+p, li {
+    font: 14px var(--sans);
+    margin-bottom: 12px;
+    color: var(--content);
+}
+
+li {
+    margin-left: 24px;
+}
+
+button {
+    border: 1px solid var(--content);
+    color: var(--content);
+    background: none;
+    width: 100%;
+    padding: 8px 16px;
+    font: 14px var(--sans);
+    text-align: left;
+    transition-property: color, background-color;
+    transition-duration: 0.1s;
+    transition-timing-function: ease;
+}
+
+button + button {
+    margin-top: 12px;
+}
+
+button.selected {
+    background: var(--content);
+    color: var(--bg);
+}
+
+#welcome {
+    padding: 0 24px;
+    margin-bottom: 24px;
+}
+
+#choose-entries {
+    background: var(--shadow);
+    opacity: 0.0;
+    border-top: 1px solid var(--gray);
+    border-bottom: 1px solid var(--gray);
+    height: 0;
+    margin-bottom: 0;
+    padding: 0 24px;
+    transition: opacity 0.3s ease, height 0.3s ease, margin-bottom 0.3s ease-out, padding 0.3s ease-out;
+    overflow-y: hidden;
+}
+
+#configure {
+    padding: 0 24px;
+    margin-bottom: 24px;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+}
+
+.volume {
+    margin-top: 24px;
+    font: 14px var(--sans);
+    margin-bottom: 12px;
+    color: var(--content);
+}
+
+.entry {
+    padding: 8px 16px;
+    border: 1px solid var(--content);
+    background: var(--bg);
+    transition: background-color 0.1s ease;
+}
+
+.entry.selected {
+    background: var(--content);
+}
+
+.entry + .entry {
+    margin-top: 12px;
+}
+
+h3 {
+    font: 18px var(--serif);
+    color: var(--content);
+    transition: color 0.1s ease;
+}
+
+.selected h3 {
+    color: var(--bg);
+}
+
+.entry p {
+    font: 12px var(--sans);
+    color: var(--gray);
+    margin-bottom: 0;
+}

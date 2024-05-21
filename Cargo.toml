@@ -6,7 +6,8 @@ edition = "2021"
 [dependencies]
 axum = "0.7.5"
 chrono = "0.4.38"
-maud = "0.26.0"
+indexmap = "2.2.6"
+maud = { version = "0.26.0", features = ["axum"] }
 serde_json = "1.0.117"
 tokio = { version = "1", features = ["full"] }
 

@@ -2,25 +2,24 @@
 
 body {
     padding: 24px;
-    background: var(--white);
 }
 
 h1 {
-    font: bold 32px var(--serif);
+    font: bold 28px var(--serif);
     font-style: italic;
-    margin-bottom: 32px;
-    color: var(--black);
+    margin-bottom: 24px;
+    color: var(--content);
 }
 
 p {
-    font: 16px var(--sans);
+    font: 14px var(--sans);
     margin-bottom: 12px;
-    color: var(--black);
+    color: var(--content);
 }
 
 ul {
     list-style: none;
-    padding: 16px 0;
+    padding: 12px 0;
 }
 
 li + li {
@@ -28,23 +27,23 @@ li + li {
 }
 
 label {
-    font: 16px var(--sans);
+    font: 14px var(--sans);
     margin-right: 12px;
     width: 128px;
     display: inline-block;
     text-align: right;
-    color: var(--black);
+    color: var(--content);
 }
 
 input {
-    font: 16px var(--serif);
+    font: 14px var(--serif);
     padding: 4px;
     border-radius: 8px;
 }
 
 input, button {
-    border: 1px solid var(--black);
-    color: var(--black);
+    border: 1px solid var(--content);
+    color: var(--content);
     background: none;
 }
 
