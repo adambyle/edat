@@ -1,0 +1,5 @@
+# Every Day's a Thursday
+
+*Every Day's a Thursday* is the name of a journal I keep in my spare time. Since it is very large (over 400,000 words and growing), organized into volumes and entries, and is shared with some of my close friends to read, I wanted to design a website to make it accessible. I may even plan to design a general version of this app in the future. The backend and frontend code for this project are open-sourced here, but obviously it will not run without the associated journal data, which I have not included in this repository for privacy reasons. Maybe in the future I will publish a comprehensive guide to how to format the data in case there is any interest in repurposing this code, but for now you can glean most of it from a good hard look at (data.rs)[src/data.rs].
+
+Yes, I know that the authentication code in this project is dangerous and very rudimentary, but as long as the usernames of the people who read my journal never get leaked (yipe!) the contents of my journal cannot be read. Besides, its exposure would not be the end of the world. I am self-learning about authentication right now and hope to implement a more robust system soon.
