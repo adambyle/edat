@@ -1,359 +1,404 @@
-use std::fs::File;
+use std::{collections::HashMap, fs::File};
 
-use chrono::{DateTime, NaiveDateTime, Utc};
-use indexmap::IndexMap;
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
 
-pub fn load_users() -> Vec<User> {
-    let users_file = File::open("users/users.json").expect("failed to open users.json");
-    let doc: Value = serde_json::from_reader(users_file).expect("failed to parse users.json");
-
-    doc["users"]
-        .as_array()
-        .unwrap()
-        .into_iter()
-        .map(User::from_json)
-        .collect()
+#[derive(Clone)]
+pub struct Index {
+    users: HashMap<String, User>,
+    volumes: HashMap<String, Volume>,
+    entries: HashMap<String, Entry>,
+    sections: HashMap<u32, Section>,
 }
 
-pub fn load_content() -> Content {
-    let content_file = File::open("content/index.json").expect("failed to open index.json");
-    let doc: Value = serde_json::from_reader(content_file).expect("failed to parse index.json");
+impl Index {
+    pub fn init() -> Self {
+        let users = File::open("users/users.json").unwrap();
+        let users: Vec<String> = serde_json::from_reader(users).unwrap();
+        let users = users
+            .into_iter()
+            .map(|u| {
+                let user = File::open(format!("users/{u}.json")).unwrap();
+                let user = serde_json::from_reader(user).unwrap();
+                (u, user)
+            })
+            .collect();
 
-    let volumes: Volumes = doc["volumes"]
-        .as_array()
-        .unwrap()
-        .into_iter()
-        .map(|v| {
-            let volume = v.as_str().unwrap();
-            let volume_file = File::open(format!("content/volumes/{volume}.json"))
-                .expect("failed to open volume: {volume}");
-            let doc = serde_json::from_reader(volume_file).expect("failed to parse volume");
-            let volume = Volume::from_json(volume.to_owned(), &doc);
-            (volume.id.clone(), volume)
-        })
-        .collect();
+        let volumes = File::open("content/volumes.json").unwrap();
+        let volumes: Vec<String> = serde_json::from_reader(volumes).unwrap();
+        let volumes: HashMap<String, Volume> = volumes
+            .into_iter()
+            .map(|v| {
+                let volume = File::open(format!("content/volumes/{v}.json")).unwrap();
+                let volume = serde_json::from_reader(volume).unwrap();
+                (v, volume)
+            })
+            .collect();
 
-    let entries: Entries = volumes
-        .values()
-        .map(|v| v.entries.iter())
-        .flatten()
-        .map(|e| {
-            let entry_file =
-                File::open(format!("content/entries/{e}.json")).expect("failed to open entry");
-            let doc = serde_json::from_reader(entry_file).expect("failed to parse entry");
-            let entry = Entry::from_json(e.clone(), &doc);
-            (entry.id.clone(), entry)
-        })
-        .collect();
+        let entries: HashMap<String, Entry> = volumes
+            .values()
+            .map(|v| v.entries.iter())
+            .flatten()
+            .map(|e| {
+                let entry = File::open(format!("content/entries/{e}.json")).unwrap();
+                let entry = serde_json::from_reader(entry).unwrap();
+                (e.clone(), entry)
+            })
+            .collect();
 
-    let sections = entries
-        .values()
-        .map(|e| e.sections.iter())
-        .flatten()
-        .map(|s| {
-            let section_file =
-                File::open(format!("content/sections/{s}.json")).expect("failed to open section");
-            let doc: Value =
-                serde_json::from_reader(section_file).expect("failed to parse section");
-            let section = Section::from_json(*s, &doc);
-            (*s, section)
-        })
-        .collect();
+        let sections = entries
+            .values()
+            .map(|e| e.sections.iter())
+            .flatten()
+            .map(|&s| {
+                let section = File::open(format!("content/sections/{s}.json")).unwrap();
+                let section = serde_json::from_reader(section).unwrap();
+                (s, section)
+            })
+            .collect();
 
-    Content {
-        volumes,
-        entries,
-        sections,
+        Index {
+            users,
+            volumes,
+            entries,
+            sections,
+        }
+    }
+
+    pub fn users(&self) -> impl Iterator<Item = UserWrapper> {
+        self.users.iter().map(|(k, u)| Wrapper::new(u, k))
+    }
+
+    pub fn user<'a>(&'a self, id: &'a str) -> Option<UserWrapper> {
+        self.users.get(id).map(|u| Wrapper::new(u, id))
+    }
+
+    pub fn volumes(&self) -> impl Iterator<Item = VolumeWrapper> {
+        self.volumes.iter().map(|(k, v)| Wrapper::new(v, k))
+    }
+
+    pub fn volume<'a>(&'a self, id: &'a str) -> Option<VolumeWrapper> {
+        self.volumes.get(id).map(|v| Wrapper::new(v, id))
+    }
+
+    pub fn entries(&self) -> impl Iterator<Item = EntryWrapper> {
+        self.entries.iter().map(|(k, e)| Wrapper::new(e, k))
+    }
+
+    pub fn entry<'a>(&'a self, id: &'a str) -> Option<EntryWrapper> {
+        self.entries.get(id).map(|e| Wrapper::new(e, id))
+    }
+
+    pub fn sections(&self) -> impl Iterator<Item = SectionWrapper> {
+        self.sections
+            .iter()
+            .map(|(&k, s)| Wrapper::new(s, k))
+    }
+
+    pub fn section(&self, id: u32) -> Option<SectionWrapper> {
+        self.sections.get(&id).map(|s| Wrapper::new(s, id))
+    }
+
+    pub fn users_mut(&mut self) -> impl Iterator<Item = UserWrapperMut> {
+        self.users.iter_mut().map(|(k, u)| WrapperMut::new(u, k))
+    }
+
+    pub fn user_mut<'a>(&'a mut self, id: &'a str) -> Option<UserWrapperMut> {
+        self.users.get_mut(id).map(|u| WrapperMut::new(u, id))
+    }
+
+    pub fn volumes_mut(&mut self) -> impl Iterator<Item = VolumeWrapperMut> {
+        self.volumes.iter_mut().map(|(k, v)| WrapperMut::new(v, k))
+    }
+
+    pub fn volume_mut<'a>(&'a mut self, id: &'a str) -> Option<VolumeWrapperMut> {
+        self.volumes.get_mut(id).map(|v| WrapperMut::new(v, id))
+    }
+
+    pub fn entries_mut(&mut self) -> impl Iterator<Item = EntryWrapperMut> {
+        self.entries.iter_mut().map(|(k, e)| WrapperMut::new(e, k))
+    }
+
+    pub fn entry_mut<'a>(&'a mut self, id: &'a str) -> Option<EntryWrapperMut> {
+        self.entries.get_mut(id).map(|e| WrapperMut::new(e, id))
+    }
+
+    pub fn sections_mut(&mut self) -> impl Iterator<Item = SectionWrapperMut> {
+        self.sections
+            .iter_mut()
+            .map(|(&k, s)| WrapperMut::new(s, k))
+    }
+
+    pub fn section_mut(&mut self, id: u32) -> Option<SectionWrapperMut> {
+        self.sections.get_mut(&id).map(|s| WrapperMut::new(s, id))
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct User {
+    first_name: String,
+    last_name: String,
+    privilege: UserPrivilege,
+    codes: Vec<String>,
+    widgets: Vec<String>,
+    history: Option<Vec<History>>,
+}
+
+impl User {
+    pub fn first_name(&self) -> &str {
+        &self.first_name
+    }
+
+    pub fn last_name(&self) -> &str {
+        &self.last_name
+    }
+
+    pub fn has_code(&self, code: &str) -> bool {
+        self.codes.iter().any(|c| c == code)
+    }
+
+    pub fn history(&self) -> Option<&[History]> {
+        self.history.as_ref().map(|h| h.as_ref())
+    }
+}
+
+impl<'a> Save<'a> for User {
+    type Id = &'a str;
+
+    fn save(&self, id: Self::Id) {
+        let user = File::open(format!("users/{id}.json")).unwrap();
+        serde_json::to_writer_pretty(user, self).unwrap();
+    }
+}
+
+pub type UserWrapperMut<'a> = WrapperMut<'a, User>;
+pub type UserWrapper<'a> = Wrapper<'a, User>;
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UserPrivilege {
     Owner,
     Reader,
 }
 
-#[derive(Clone, Eq)]
-pub struct User {
-    pub first_name: String,
-    pub last_name: String,
-    pub privilege: UserPrivilege,
-    pub codes: Vec<String>,
-    pub sections_read: Option<Vec<(u64, NaiveDateTime)>>,
+#[derive(Clone, Serialize, Deserialize)]
+pub struct History {
+    section: u32,
+    progress: usize,
+    timestamp: u64,
 }
 
-impl User {
-    pub fn full_name(&self) -> String {
-        format!("{}{}", self.first_name, self.last_name).to_lowercase()
-    }
-
-    pub fn from_json(json: &Value) -> User {
-        let first_name = json["first_name"].as_str().unwrap().to_owned();
-        let last_name = json["last_name"].as_str().unwrap().to_owned();
-        let privilege = match json["privilege"].as_str().unwrap() {
-            "owner" => UserPrivilege::Owner,
-            "reader" => UserPrivilege::Reader,
-            other => panic!("invalid user privilege: {other}"),
-        };
-        let codes = json["codes"]
-            .as_array()
-            .unwrap()
-            .into_iter()
-            .map(|code| code.as_str().unwrap().to_owned())
-            .collect();
-        let sections_read = json.get("sections_read").map(|s| {
-            s.as_array()
-                .unwrap()
-                .into_iter()
-                .map(|entry| {
-                    (
-                        entry[0].as_u64().unwrap(),
-                        NaiveDateTime::parse_from_str(entry[1].as_str().unwrap(), "%F").unwrap(),
-                    )
-                })
-                .collect()
-        });
-        User {
-            first_name,
-            last_name,
-            privilege,
-            codes,
-            sections_read,
-        }
-    }
-}
-
-impl PartialEq for User {
-    fn eq(&self, other: &Self) -> bool {
-        self.first_name == other.first_name && self.last_name == other.last_name
-    }
-}
-
-fn get_user<'a>(users: &'a [User], name: &str) -> Option<&'a User> {
-    users.iter().find(|user| user.full_name() == name)
-}
-
-pub type Volumes = IndexMap<String, Volume>;
-pub type Entries = IndexMap<String, Entry>;
-pub type Sections = IndexMap<u32, Section>;
-
-#[derive(Clone)]
-pub struct Content {
-    pub volumes: Volumes,
-    pub entries: Entries,
-    pub sections: Sections,
-}
-
-#[derive(Clone)]
-pub enum VolumeType {
-    Journal,
-    Archive,
-    Creative,
-    Cartoons,
-    Featured,
-}
-
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Volume {
-    pub id: String,
-    pub title: String,
-    pub subtitle: Option<String>,
+    title: String,
+    subtitle: Option<String>,
     owner: String,
-    pub content_type: VolumeType,
-    pub volume_count: usize,
-    pub entries: Vec<String>,
+    content_type: ContentType,
+    volume_count: usize,
+    entries: Vec<String>,
 }
 
 impl Volume {
-    pub fn owner<'a>(&self, users: &'a [User]) -> Option<&'a User> {
-        get_user(users, &self.owner)
+    pub fn title(&self) -> &str {
+        &self.title
     }
 
-    pub fn from_json(id: String, json: &Value) -> Volume {
-        let title = json["title"].as_str().unwrap().to_owned();
-        let subtitle = json.get("subtitle").map(|s| s.as_str().unwrap().to_owned());
-        let owner = json["owner"].as_str().unwrap().to_owned();
-        let content_type = match json["type"].as_str().unwrap() {
-            "journal" => VolumeType::Journal,
-            "archive" => VolumeType::Archive,
-            "creative" => VolumeType::Creative,
-            "cartoons" => VolumeType::Cartoons,
-            "featured" => VolumeType::Featured,
-            other => panic!("invalid volume type: {other}"),
-        };
-        let volume_count = json["volumes"].as_u64().unwrap() as usize;
-        let entries = json["entries"]
-            .as_array()
-            .unwrap()
-            .into_iter()
-            .map(|e| e.as_str().unwrap().to_owned())
-            .collect();
-
-        Volume {
-            id,
-            title,
-            subtitle,
-            owner,
-            content_type,
-            volume_count,
-            entries,
-        }
+    pub fn subtitle(&self) -> Option<&str> {
+        self.subtitle.as_ref().map(|x| x.as_str())
     }
 
-    pub fn entries<'a>(&self, content: &'a Content) -> Vec<&'a Entry> {
-        self.entries.iter().map(|e| &content.entries[e]).collect()
+    pub fn content_type(&self) -> ContentType {
+        self.content_type.clone()
+    }
+
+    pub fn entries<'a>(&'a self, index: &'a Index) -> impl Iterator<Item = EntryWrapper> {
+        self.entries.iter().filter_map(|e| index.entry(e))
     }
 }
 
-#[derive(Clone)]
+impl<'a> Save<'a> for Volume {
+    type Id = &'a str;
+
+    fn save(&self, id: Self::Id) {
+        let volume = File::open(format!("content/volumes/{id}.json")).unwrap();
+        serde_json::to_writer_pretty(volume, self).unwrap();
+    }
+}
+
+pub type VolumeWrapperMut<'a> = WrapperMut<'a, Volume>;
+pub type VolumeWrapper<'a> = Wrapper<'a, Volume>;
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ContentType {
+    Journal,
+    Archive,
+    Diary,
+    Cartoons,
+    Creative,
+    Featured,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Entry {
-    pub id: String,
-    pub name: String,
+    title: String,
     parent_volume: (String, usize),
     author: String,
-    pub description: String,
-    pub summary: String,
+    summary: String,
+    description: String,
     sections: Vec<u32>,
 }
 
 impl Entry {
-    pub fn parent_volume<'a>(&self, index: &'a Content) -> Option<(&'a Volume, usize)> {
-        index
-            .volumes
-            .get(&self.parent_volume.0)
-            .map(|v| (v, self.parent_volume.1))
+    pub fn title(&self) -> &str {
+        &self.title
     }
 
-    pub fn author<'a>(&self, users: &'a [User]) -> Option<&'a User> {
-        get_user(users, &self.author)
+    pub fn description(&self) -> &str {
+        &self.description
     }
 
-    pub fn from_json(id: String, json: &Value) -> Entry {
-        let name = json["name"].as_str().unwrap().to_owned();
-        let parent_volume = json["parent_volume"].as_array().unwrap();
-        let parent_volume = (
-            parent_volume[0].as_str().unwrap().to_owned(),
-            parent_volume[1].as_u64().unwrap() as usize,
-        );
-        let author = json["author"].as_str().unwrap().to_owned();
-        let summary = json["summary"].as_str().unwrap().to_owned();
-        let description = json["description"].as_str().unwrap().to_owned();
-        let sections = json["sections"]
-            .as_array()
-            .unwrap()
-            .into_iter()
-            .map(|s| s.as_u64().unwrap() as u32)
-            .collect();
-
-        Entry {
-            id,
-            name,
-            parent_volume,
-            author,
-            summary,
-            description,
-            sections,
-        }
-    }
-
-    pub fn sections<'a>(&self, content: &'a Content) -> Vec<&'a Section> {
-        self.sections.iter().map(|s| &content.sections[s]).collect()
+    pub fn summary(&self) -> &str {
+        &self.summary
     }
 }
-#[derive(Clone)]
-pub enum Completion {
+
+impl<'a> Save<'a> for Entry {
+    type Id = &'a str;
+
+    fn save(&self, id: Self::Id) {
+        let volume = File::open(format!("content/entries/{id}.json")).unwrap();
+        serde_json::to_writer_pretty(volume, self).unwrap();
+    }
+}
+
+pub type EntryWrapperMut<'a> = WrapperMut<'a, Entry>;
+pub type EntryWrapper<'a> = Wrapper<'a, Entry>;
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Section {
+    parent_entry: String,
+    status: ContentStatus,
+    date: String,
+    summary: String,
+    description: String,
+    comments: Vec<Comment>,
+    perspectives: Vec<u32>,
+}
+
+impl<'a> Save<'a> for Section {
+    type Id = u32;
+
+    fn save(&self, id: Self::Id) {
+        let section = File::open(format!("content/sections/{id}.json")).unwrap();
+        serde_json::to_writer_pretty(section, self).unwrap();
+    }
+}
+
+pub type SectionWrapperMut<'a> = WrapperMut<'a, Section>;
+pub type SectionWrapper<'a> = Wrapper<'a, Section>;
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ContentStatus {
     Missing,
     Incomplete,
     Complete,
 }
 
-#[derive(Clone)]
-pub enum Timestamp {
-    Date(NaiveDateTime),
-    Custom(String),
-}
-
-#[derive(Clone)]
-pub struct Section {
-    pub id: u32,
-    parent_entry: String,
-    pub status: Completion,
-    pub date: Timestamp,
-    pub summary: String,
-    pub perspectives: Vec<u32>,
-    pub comments: Vec<Comment>,
-}
-
-impl Section {
-    pub fn parent_volume<'a>(&self, index: &'a Content) -> Option<&'a Entry> {
-        index.entries.get(&self.parent_entry)
-    }
-
-    pub fn from_json(id: u32, json: &Value) -> Section {
-        let parent_entry = json["parent_entry"].as_str().unwrap().to_owned();
-        let status = match json["status"].as_str().unwrap() {
-            "missing" => Completion::Missing,
-            "incomplete" => Completion::Incomplete,
-            "complete" => Completion::Complete,
-            other => panic!("invalid completion status: {other}"),
-        };
-        let date = json["date"].as_str().unwrap();
-        let date = match NaiveDateTime::parse_from_str(date, "%F") {
-            Ok(date) => Timestamp::Date(date),
-            Err(_) => Timestamp::Custom(date.to_owned()),
-        };
-        let summary = json["summary"].as_str().unwrap().to_owned();
-        let comments = json["comments"]
-            .as_array()
-            .unwrap()
-            .into_iter()
-            .map(Comment::from_json)
-            .collect();
-        let perspectives = json["perspectives"]
-            .as_array()
-            .unwrap()
-            .into_iter()
-            .map(|p| p.as_u64().unwrap() as u32)
-            .collect();
-
-        Section {
-            id,
-            parent_entry,
-            status,
-            date,
-            summary,
-            perspectives,
-            comments,
-        }
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Comment {
-    pub paragraph: usize,
     author: String,
-    pub timestamp: DateTime<Utc>,
-    pub content: String,
+    timestamp: u64,
+    contents: String,
 }
 
-impl Comment {
-    pub fn author<'a>(&self, users: &'a [User]) -> Option<&'a User> {
-        get_user(users, &self.author)
+pub trait Save<'a> {
+    type Id: Copy;
+
+    fn save(&self, id: Self::Id);
+}
+
+pub struct Wrapper<'a, T>
+where
+    T: Save<'a>,
+{
+    id: T::Id,
+    data: &'a T,
+}
+
+impl<'a, T> Wrapper<'a, T>
+where
+    T: Save<'a>,
+{
+    fn new(data: &'a T, id: T::Id) -> Self {
+        Wrapper { id, data }
     }
 
-    pub fn from_json(json: &Value) -> Comment {
-        let paragraph = json["paragraph"].as_u64().unwrap() as usize;
-        let author = json["author"].as_str().unwrap().to_owned();
-        let timestamp =
-            DateTime::from_timestamp_millis(json["timestamp"].as_i64().unwrap()).unwrap();
-        let content = json["content"].as_str().unwrap().to_owned();
+    pub fn id(&self) -> T::Id {
+        self.id
+    }
+}
 
-        Comment {
-            paragraph,
-            author,
-            timestamp,
-            content,
+impl<'a, T> std::ops::Deref for Wrapper<'a, T>
+where
+    T: Save<'a>,
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+pub struct WrapperMut<'a, T>
+where
+    T: Save<'a>,
+{
+    id: T::Id,
+    data: &'a mut T,
+    modified: bool,
+}
+
+impl<'a, T> WrapperMut<'a, T>
+where
+    T: Save<'a>,
+{
+    fn new(data: &'a mut T, id: T::Id) -> Self {
+        WrapperMut {
+            id,
+            data,
+            modified: false,
         }
+    }
+
+    pub fn id(&self) -> T::Id {
+        self.id
+    }
+}
+
+impl<'a, T> std::ops::Deref for WrapperMut<'a, T>
+where
+    T: Save<'a>,
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<'a, T> std::ops::DerefMut for WrapperMut<'a, T>
+where
+    T: Save<'a>,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.modified = true;
+        &mut self.data
+    }
+}
+
+impl<'a, T> Drop for WrapperMut<'a, T>
+where
+    T: Save<'a>,
+{
+    fn drop(&mut self) {
+        self.data.save(self.id);
     }
 }

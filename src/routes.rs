@@ -7,8 +7,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::Value;
 
-use crate::data::User;
-use crate::{html, AppState};
+use crate::{data, html};
 
 pub async fn script(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
     static_file("scripts", file_name, "text/javascript")
@@ -19,37 +18,35 @@ pub async fn style(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
 }
 
 pub async fn login(
-    State(state): State<AppState>,
+    State(mut index): State<data::Index>,
     ReqPath((name, code)): ReqPath<(String, String)>,
 ) -> impl IntoResponse {
-    let name = name.to_lowercase().replace(' ', "");
+    let name = name.to_lowercase().replace(char::is_whitespace, "");
     let code = code.to_lowercase();
 
-    for user in &state.users {
-        if (name == user.first_name.to_lowercase() || name == user.full_name())
-            && user.codes.contains(&code)
-        {
-            return (StatusCode::OK, user.full_name());
+    for user in index.users() {
+        if (name == user.first_name().to_lowercase() || name == user.id()) && user.has_code(&code) {
+            return (StatusCode::OK, user.id().to_owned());
         }
     }
 
-    (StatusCode::UNAUTHORIZED, String::new())
+    (StatusCode::UNAUTHORIZED, "".to_owned())
 }
 
-pub async fn record(
-    State(state): State<AppState>, Json(read): Json<Value>
+pub async fn register(
+    State(index): State<data::Index>,
+    Json(body): Json<Value>,
 ) -> impl IntoResponse {
-    StatusCode::OK
 }
 
-pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl IntoResponse {
-    let user = match login_check(&headers, &state) {
+pub async fn home(headers: HeaderMap, State(mut index): State<data::Index>) -> impl IntoResponse {
+    let user = match login_check(&headers, &mut index) {
         Ok(user) => user,
         Err(html) => return html,
     };
-    let sections_read = match &user.sections_read {
-        Some(sections_read) => sections_read,
-        None => return html::setup(&headers, &state.content),
+    let Some(history) = user.history() else {
+        drop(user);
+        return html::setup(&headers, &mut index);
     };
     maud::html! { "Success" }
 }
@@ -82,14 +79,17 @@ fn static_file(
     }
 }
 
-fn login_check<'a>(headers: &HeaderMap, state: &'a AppState) -> Result<&'a User, maud::Markup> {
+fn login_check<'a>(
+    headers: &HeaderMap,
+    index: &'a mut data::Index,
+) -> Result<data::UserWrapper<'a>, maud::Markup> {
     let err = || html::login(headers);
 
     let Some(username) = get_cookie(headers, "edat_user") else {
         return Err(err());
     };
 
-    state.users.iter().find(|u| u.full_name() == username).ok_or_else(err)
+    index.users().find(|u| u.id() == username).ok_or_else(err)
 }
 
 pub fn get_cookie<'a>(headers: &'a HeaderMap, key: &str) -> Option<&'a str> {

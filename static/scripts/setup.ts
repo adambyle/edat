@@ -1,9 +1,12 @@
 const recordChoices = document.getElementsByClassName("record-choice") as HTMLCollectionOf<HTMLInputElement>;
 const entries = document.getElementsByClassName("entry") as HTMLCollectionOf<HTMLDivElement>;
+const widgets = document.getElementsByClassName("widget") as HTMLCollectionOf<HTMLDivElement>;
 const elChooseEntries = document.getElementById("choose-entries")!;
 const elConfigure = document.getElementById("configure")!;
+const done = document.getElementById("done") as HTMLButtonElement;
 
 let readEntries: string[] = [];
+let includeWidgets: string[] = [];
 
 let scrolled = false;
 for (const choice of recordChoices) {
@@ -59,4 +62,50 @@ for (const entry of entries) {
             readEntries.push(entryId);
         }
     }
+}
+
+for (const widget of widgets) {
+    const button = widget.children[1] as HTMLButtonElement;
+    const span = widget.children[0] as HTMLSpanElement;
+    button.onclick = () => {
+        if (button.classList.contains("selected")) {
+            button.classList.remove("selected");
+            includeWidgets = includeWidgets.filter(w => w != button.id);
+            span.style.opacity = "0.0";
+
+            for (let i = 0; i < includeWidgets.length; i++) {
+                const changeSpan = document.getElementById(includeWidgets[i])!.parentElement!.children[0] as HTMLSpanElement;
+                changeSpan.innerText = `#${i + 1}`;
+            }
+        } else {
+            button.classList.add("selected");
+            includeWidgets.push(button.id);
+            span.innerText = `#${includeWidgets.length}`;
+            span.style.opacity = "1.0";
+        }
+    }
+}
+
+done.onclick = () => {
+    let recordChoice = document.querySelector(".record-choice.selected");
+    if (!recordChoice) {
+        return;
+    }
+
+    let entries: "all" | string[];
+    if (recordChoice.id == "blank-record") {
+        entries = [];
+    } else if (recordChoice.id == "full-record") {
+        entries = "all";
+    } else {
+        entries = [...document.querySelectorAll(".entry.selected")].map(e => e.getAttribute("edat-entry")!);
+    }
+
+    fetch("/register", {
+        method: "POST",
+        body: JSON.stringify({
+            entries,
+            widgets: includeWidgets,
+        }),
+    });
 }

@@ -1,10 +1,7 @@
 use axum::http::HeaderMap;
 use maud::{html, Markup, PreEscaped, DOCTYPE};
 
-use crate::{
-    data::{Content, Entries, VolumeType, Volumes},
-    routes::get_cookie,
-};
+use crate::{data, routes};
 
 fn universal(
     body: PreEscaped<String>,
@@ -12,7 +9,7 @@ fn universal(
     resource: &'static str,
     title: &str,
 ) -> Markup {
-    let dark_theme = match get_cookie(headers, "edat_theme") {
+    let dark_theme = match routes::get_cookie(headers, "edat_theme") {
         Some("dark") => Some("dark-theme"),
         _ => None,
     };
@@ -20,7 +17,7 @@ fn universal(
         (DOCTYPE)
         head {
             title { "Every Day’s a Thursday | " (title) }
-            meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no";
+            meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
             link type="text/css" rel="stylesheet" href={"style/" (resource) ".css"};
         }
         body class=[dark_theme] {
@@ -54,11 +51,10 @@ pub fn login(headers: &HeaderMap) -> Markup {
     universal(login, headers, "login", "Login")
 }
 
-pub fn setup(headers: &HeaderMap, content: &Content) -> Markup {
-    let volumes_to_choose_from = content
-        .volumes
-        .values()
-        .filter(|v| matches!(v.content_type, VolumeType::Journal));
+pub fn setup(headers: &HeaderMap, index: &mut data::Index) -> Markup {
+    let volumes_to_choose_from = index
+        .volumes()
+        .filter(|v| v.content_type() == data::ContentType::Journal);
     let setup = html! {
         #welcome {
             h1 { "Every Day’s a Thursday" }
@@ -78,17 +74,71 @@ pub fn setup(headers: &HeaderMap, content: &Content) -> Markup {
         #choose-entries {
             p { "Using the best of your knowledge, select the entries below that you believe you may have read before." }
             @for volume in volumes_to_choose_from {
-                h2.volume { (PreEscaped(&volume.title)) }
-                @for entry in volume.entries(&content) {
-                    .entry edat-entry=(&entry.id) {
-                        h3 { (PreEscaped(&entry.name)) }
-                        p { (PreEscaped(&entry.description)) }
+                h2.volume { (PreEscaped(volume.title())) }
+                @for entry in volume.entries(&index) {
+                    .entry edat-entry=(entry.id()) {
+                        h3 { (PreEscaped(entry.title())) }
+                        p { (PreEscaped(entry.description())) }
                     }
                 }
             }
         }
         #configure {
-            p { "Please intialize your user settings below. These can always be changed later." }
+            p { b { "Your homepage is customizable to serve the most relevant content." } }
+            p { "Select the elements below in the order (top to bottom) you would like them to appear on your homepage. You can include or omit whichever you want." }
+            p { "Common resources, like the library, the index, and the addition history, will always have quick links at the top, but you can get more detailed information by selecting their widgets below." }
+            .widget {
+                span {}
+                button #recent-widget {
+                    h3 { "Recent additions" }
+                    p { "Carousel of the latest sections" }
+                }
+            }
+            .widget {
+                span {}
+                button #library-widget {
+                    h3 { "The library" }
+                    p { "Quick access to the main journal’s four books" }
+                }
+            }
+            .widget {
+                span {}
+                button #conversations-widget {
+                    h3 { "Conversations" }
+                    p { "See where readers have recently commented" }
+                }
+            }
+            .widget {
+                span {}
+                button #timeline-widget {
+                    h3 { "The timeline" }
+                    p { "Track your progress through the chronology" }
+                }
+            }
+            .widget {
+                span {}
+                button #random-widget {
+                    h3 { "Random entry" }
+                    p { "Reading recommendation" }
+                }
+            }
+            .widget {
+                span {}
+                button #extras-widget {
+                    h3 { "Extras" }
+                    p { "Quick access to old journals, fiction, and more" }
+                }
+            }
+            .widget {
+                span {}
+                button #search-widget {
+                    h3 { "Search bar" }
+                    p { "Website search feature" }
+                }
+            }
+            p { "You can always change these settings later." }
+            button #done { "Finished" }
+
         }
     };
     universal(setup, headers, "setup", "Setup account")

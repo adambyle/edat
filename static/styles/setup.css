@@ -29,6 +29,7 @@ button {
     transition-property: color, background-color;
     transition-duration: 0.1s;
     transition-timing-function: ease;
+    touch-action: manipulation;
 }
 
 button + button {
@@ -97,8 +98,36 @@ h3 {
     color: var(--bg);
 }
 
-.entry p {
+.entry p, .widget p {
     font: 12px var(--sans);
     color: var(--gray);
     margin-bottom: 0;
+}
+
+.widget {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+}
+
+.widget:first-child {
+    margin-top: 12px;
+}
+
+.widget:last-child {
+    margin-bottom: 24px;
+}
+
+.widget h3 {
+    font: 18px var(--sans);
+}
+
+.widget span {
+    width: 16px;
+    margin-right: 12px;
+    text-align: right;
+    font: 18px var(--serif);
+    color: var(--content);
+    opacity: 0;
+    transition: opacity 0.1s ease;
 }
