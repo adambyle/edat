@@ -65,33 +65,37 @@ impl Index {
     }
 
     pub fn users(&self) -> impl Iterator<Item = UserWrapper> {
-        self.users.iter().map(|(k, u)| Wrapper::new(u, k))
+        self.users
+            .iter()
+            .map(|(k, u)| Wrapper::new(u, k.to_owned()))
     }
 
-    pub fn user<'a>(&'a self, id: &'a str) -> Option<UserWrapper> {
-        self.users.get(id).map(|u| Wrapper::new(u, id))
+    pub fn user<'a>(&'a self, id: &str) -> Option<UserWrapper> {
+        self.users.get(id).map(|u| Wrapper::new(u, id.to_owned()))
     }
 
     pub fn volumes(&self) -> impl Iterator<Item = VolumeWrapper> {
-        self.volumes.iter().map(|(k, v)| Wrapper::new(v, k))
+        self.volumes
+            .iter()
+            .map(|(k, v)| Wrapper::new(v, k.to_owned()))
     }
 
-    pub fn volume<'a>(&'a self, id: &'a str) -> Option<VolumeWrapper> {
-        self.volumes.get(id).map(|v| Wrapper::new(v, id))
+    pub fn volume<'a>(&'a self, id: &str) -> Option<VolumeWrapper> {
+        self.volumes.get(id).map(|v| Wrapper::new(v, id.to_owned()))
     }
 
     pub fn entries(&self) -> impl Iterator<Item = EntryWrapper> {
-        self.entries.iter().map(|(k, e)| Wrapper::new(e, k))
+        self.entries
+            .iter()
+            .map(|(k, e)| Wrapper::new(e, k.to_owned()))
     }
 
-    pub fn entry<'a>(&'a self, id: &'a str) -> Option<EntryWrapper> {
-        self.entries.get(id).map(|e| Wrapper::new(e, id))
+    pub fn entry<'a>(&'a self, id: &str) -> Option<EntryWrapper> {
+        self.entries.get(id).map(|e| Wrapper::new(e, id.to_owned()))
     }
 
     pub fn sections(&self) -> impl Iterator<Item = SectionWrapper> {
-        self.sections
-            .iter()
-            .map(|(&k, s)| Wrapper::new(s, k))
+        self.sections.iter().map(|(&k, s)| Wrapper::new(s, k))
     }
 
     pub fn section(&self, id: u32) -> Option<SectionWrapper> {
@@ -99,27 +103,39 @@ impl Index {
     }
 
     pub fn users_mut(&mut self) -> impl Iterator<Item = UserWrapperMut> {
-        self.users.iter_mut().map(|(k, u)| WrapperMut::new(u, k))
+        self.users
+            .iter_mut()
+            .map(|(k, u)| WrapperMut::new(u, k.to_owned()))
     }
 
-    pub fn user_mut<'a>(&'a mut self, id: &'a str) -> Option<UserWrapperMut> {
-        self.users.get_mut(id).map(|u| WrapperMut::new(u, id))
+    pub fn user_mut<'a>(&'a mut self, id: &str) -> Option<UserWrapperMut> {
+        self.users
+            .get_mut(id)
+            .map(|u| WrapperMut::new(u, id.to_owned()))
     }
 
     pub fn volumes_mut(&mut self) -> impl Iterator<Item = VolumeWrapperMut> {
-        self.volumes.iter_mut().map(|(k, v)| WrapperMut::new(v, k))
+        self.volumes
+            .iter_mut()
+            .map(|(k, v)| WrapperMut::new(v, k.to_owned()))
     }
 
-    pub fn volume_mut<'a>(&'a mut self, id: &'a str) -> Option<VolumeWrapperMut> {
-        self.volumes.get_mut(id).map(|v| WrapperMut::new(v, id))
+    pub fn volume_mut<'a>(&'a mut self, id: &str) -> Option<VolumeWrapperMut> {
+        self.volumes
+            .get_mut(id)
+            .map(|v| WrapperMut::new(v, id.to_owned()))
     }
 
     pub fn entries_mut(&mut self) -> impl Iterator<Item = EntryWrapperMut> {
-        self.entries.iter_mut().map(|(k, e)| WrapperMut::new(e, k))
+        self.entries
+            .iter_mut()
+            .map(|(k, e)| WrapperMut::new(e, k.to_owned()))
     }
 
-    pub fn entry_mut<'a>(&'a mut self, id: &'a str) -> Option<EntryWrapperMut> {
-        self.entries.get_mut(id).map(|e| WrapperMut::new(e, id))
+    pub fn entry_mut<'a>(&'a mut self, id: &str) -> Option<EntryWrapperMut> {
+        self.entries
+            .get_mut(id)
+            .map(|e| WrapperMut::new(e, id.to_owned()))
     }
 
     pub fn sections_mut(&mut self) -> impl Iterator<Item = SectionWrapperMut> {
@@ -161,12 +177,16 @@ impl User {
     }
 }
 
-impl<'a> Save<'a> for User {
-    type Id = &'a str;
+impl Save for User {
+    type Id = String;
 
-    fn save(&self, id: Self::Id) {
+    fn save(&self, id: &Self::Id) {
         let user = File::open(format!("users/{id}.json")).unwrap();
         serde_json::to_writer_pretty(user, self).unwrap();
+    }
+
+    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized {
+        index.user_mut(&id).unwrap()
     }
 }
 
@@ -214,12 +234,16 @@ impl Volume {
     }
 }
 
-impl<'a> Save<'a> for Volume {
-    type Id = &'a str;
+impl Save for Volume {
+    type Id = String;
 
-    fn save(&self, id: Self::Id) {
+    fn save(&self, id: &Self::Id) {
         let volume = File::open(format!("content/volumes/{id}.json")).unwrap();
         serde_json::to_writer_pretty(volume, self).unwrap();
+    }
+
+    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized {
+        index.volume_mut(&id).unwrap()
     }
 }
 
@@ -260,12 +284,16 @@ impl Entry {
     }
 }
 
-impl<'a> Save<'a> for Entry {
-    type Id = &'a str;
+impl Save for Entry {
+    type Id = String;
 
-    fn save(&self, id: Self::Id) {
+    fn save(&self, id: &Self::Id) {
         let volume = File::open(format!("content/entries/{id}.json")).unwrap();
         serde_json::to_writer_pretty(volume, self).unwrap();
+    }
+
+    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized {
+        index.entry_mut(&id).unwrap()
     }
 }
 
@@ -283,12 +311,16 @@ pub struct Section {
     perspectives: Vec<u32>,
 }
 
-impl<'a> Save<'a> for Section {
+impl Save for Section {
     type Id = u32;
 
-    fn save(&self, id: Self::Id) {
+    fn save(&self, id: &Self::Id) {
         let section = File::open(format!("content/sections/{id}.json")).unwrap();
         serde_json::to_writer_pretty(section, self).unwrap();
+    }
+
+    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized {
+        index.section_mut(id).unwrap()
     }
 }
 
@@ -309,15 +341,24 @@ pub struct Comment {
     contents: String,
 }
 
-pub trait Save<'a> {
-    type Id: Copy;
+pub trait Save {
+    type Id;
 
-    fn save(&self, id: Self::Id);
+    fn save(&self, id: &Self::Id);
+    
+    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized;
 }
+
+// pub trait Upgrade<I> : for<'a> Save<'a, Id = I> {
+
+//     fn get_mut<'b>(index: &'b mut Index, id: I) -> WrapperMut<'b, Self>
+//     where
+//         Self: Sized + Save<'b>;
+// }
 
 pub struct Wrapper<'a, T>
 where
-    T: Save<'a>,
+    T: Save,
 {
     id: T::Id,
     data: &'a T,
@@ -325,20 +366,24 @@ where
 
 impl<'a, T> Wrapper<'a, T>
 where
-    T: Save<'a>,
+    T: Save,
 {
     fn new(data: &'a T, id: T::Id) -> Self {
         Wrapper { id, data }
     }
 
-    pub fn id(&self) -> T::Id {
-        self.id
+    pub fn id(&self) -> &T::Id {
+        &self.id
+    }
+
+    pub fn into_mut<'b>(self) -> IntoMut<T> {
+        IntoMut(self.id)
     }
 }
 
 impl<'a, T> std::ops::Deref for Wrapper<'a, T>
 where
-    T: Save<'a>,
+    T: Save,
 {
     type Target = T;
 
@@ -349,7 +394,7 @@ where
 
 pub struct WrapperMut<'a, T>
 where
-    T: Save<'a>,
+    T: Save,
 {
     id: T::Id,
     data: &'a mut T,
@@ -358,7 +403,7 @@ where
 
 impl<'a, T> WrapperMut<'a, T>
 where
-    T: Save<'a>,
+    T: Save,
 {
     fn new(data: &'a mut T, id: T::Id) -> Self {
         WrapperMut {
@@ -368,14 +413,14 @@ where
         }
     }
 
-    pub fn id(&self) -> T::Id {
-        self.id
+    pub fn id(&self) -> &T::Id {
+        &self.id
     }
 }
 
 impl<'a, T> std::ops::Deref for WrapperMut<'a, T>
 where
-    T: Save<'a>,
+    T: Save,
 {
     type Target = T;
 
@@ -386,7 +431,7 @@ where
 
 impl<'a, T> std::ops::DerefMut for WrapperMut<'a, T>
 where
-    T: Save<'a>,
+    T: Save,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.modified = true;
@@ -396,9 +441,24 @@ where
 
 impl<'a, T> Drop for WrapperMut<'a, T>
 where
-    T: Save<'a>,
+    T: Save,
 {
     fn drop(&mut self) {
-        self.data.save(self.id);
+        self.data.save(&self.id);
     }
+}
+
+pub struct IntoMut<T: Save>(T::Id);
+
+impl<T: Save> IntoMut<T> {
+    pub fn resolve<'b>(self, index: &'b mut Index) -> WrapperMut<'b, T> {
+        T::get_mut(index, self.0)
+    }
+}
+
+#[macro_export]
+macro_rules! upgrade {
+    ($data:ident, $index:ident) => {
+        let $data = $data.into_mut().resolve(&mut $index);
+    };
 }

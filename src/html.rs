@@ -51,7 +51,7 @@ pub fn login(headers: &HeaderMap) -> Markup {
     universal(login, headers, "login", "Login")
 }
 
-pub fn setup(headers: &HeaderMap, index: &mut data::Index) -> Markup {
+pub fn setup(headers: &HeaderMap, index: &data::Index) -> Markup {
     let volumes_to_choose_from = index
         .volumes()
         .filter(|v| v.content_type() == data::ContentType::Journal);

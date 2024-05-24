@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<head>
+
+</head>
+<body>
+    <div id="output" style="border: 1px solid black; margin-bottom: 50px"></div>
+    <div id="content" style="border: 1px solid black" contenteditable="true" onpaste="setTimeout(format, 500)"></div>
+    <script>
+        function format() {
+            const content = document.getElementById("content");
+            const output = document.getElementById("output");
+
+            for (const p of content.children[0].children) {
+                let text = "";
+                for (const span of p.children) {
+                    if (span.style.fontStyle == "italic") {
+                        text += "<i>";
+                    }
+                    text += `${span.innerText}`;
+                    if (span.style.fontStyle == "italic") {
+                        text += "</i>";
+                    }
+                }
+                output.innerText += text;
+                output.innerHTML += "<br>";
+            }
+
+            window.scrollTo({
+                left: 0,
+                top: 0,
+                behavior: "smooth",
+            });
+            const range = document.createRange();
+            range.selectNode(output);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+        }
+    </script>
+</body>

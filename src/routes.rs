@@ -5,9 +5,8 @@ use axum::extract::{Path as ReqPath, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
-use serde_json::Value;
 
-use crate::{data, html};
+use crate::{data, html, upgrade};
 
 pub async fn script(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
     static_file("scripts", file_name, "text/javascript")
@@ -18,14 +17,14 @@ pub async fn style(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
 }
 
 pub async fn login(
-    State(mut index): State<data::Index>,
+    State(index): State<data::Index>,
     ReqPath((name, code)): ReqPath<(String, String)>,
 ) -> impl IntoResponse {
     let name = name.to_lowercase().replace(char::is_whitespace, "");
     let code = code.to_lowercase();
 
     for user in index.users() {
-        if (name == user.first_name().to_lowercase() || name == user.id()) && user.has_code(&code) {
+        if (name == user.first_name().to_lowercase() || &name == user.id()) && user.has_code(&code) {
             return (StatusCode::OK, user.id().to_owned());
         }
     }
@@ -33,20 +32,26 @@ pub async fn login(
     (StatusCode::UNAUTHORIZED, "".to_owned())
 }
 
-pub async fn register(
-    State(index): State<data::Index>,
-    Json(body): Json<Value>,
-) -> impl IntoResponse {
+struct RegisterBody {
+    entries: Vec<String>,
+    widgets: Vec<String>,
 }
 
-pub async fn home(headers: HeaderMap, State(mut index): State<data::Index>) -> impl IntoResponse {
-    let user = match login_check(&headers, &mut index) {
+pub async fn register(
+    State(index): State<data::Index>,
+    Json(body): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    
+}
+
+pub async fn home(headers: HeaderMap, State(index): State<data::Index>) -> impl IntoResponse {
+    let user = match login_check(&headers, &index) {
         Ok(user) => user,
         Err(html) => return html,
     };
     let Some(history) = user.history() else {
         drop(user);
-        return html::setup(&headers, &mut index);
+        return html::setup(&headers, &index);
     };
     maud::html! { "Success" }
 }
@@ -81,7 +86,7 @@ fn static_file(
 
 fn login_check<'a>(
     headers: &HeaderMap,
-    index: &'a mut data::Index,
+    index: &'a data::Index,
 ) -> Result<data::UserWrapper<'a>, maud::Markup> {
     let err = || html::login(headers);
 
