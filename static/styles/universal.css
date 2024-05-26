@@ -12,18 +12,26 @@ body {
     --content: #12141a; /* 30% 10% */
 
     background: var(--bg);
-}
+    touch-action: manipulation;
+    width: 100vw;
+    overflow-x: hidden;
 
-body.dark-theme {
-    --bg: #15181f; /* 30% 12% */
-    --clearbg: #242933d0;
-    --shadow: #090a0d; /* 30% 5% */
-    --gray: #4c5059; /* 15% 10% */
-    --content: #f0f2f5; /* 2% 96% */
+    &.dark-theme {
+        --bg: #15181f; /* 30% 12% */
+        --clearbg: #15181fd0;
+        --shadow: #090a0d; /* 30% 5% */
+        --gray: #4c5059; /* 15% 10% */
+        --content: #f0f2f5; /* 2% 96% */
+    }
 }
 
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+}
+
+a {
+    text-decoration: unset;
+    color: unset;
 }

@@ -1,3 +1,5 @@
+import "./universal.js";
+
 const recordChoices = document.getElementsByClassName("record-choice") as HTMLCollectionOf<HTMLInputElement>;
 const entries = document.getElementsByClassName("entry") as HTMLCollectionOf<HTMLDivElement>;
 const widgets = document.getElementsByClassName("widget") as HTMLCollectionOf<HTMLDivElement>;
@@ -96,7 +98,7 @@ done.onclick = () => {
     if (recordChoice.id == "blank-record") {
         entries = [];
     } else if (recordChoice.id == "full-record") {
-        entries = "all";
+        entries = ["$all"];
     } else {
         entries = [...document.querySelectorAll(".entry.selected")].map(e => e.getAttribute("edat-entry")!);
     }
@@ -107,5 +109,10 @@ done.onclick = () => {
             entries,
             widgets: includeWidgets,
         }),
+        headers: {
+            "Content-Type": "application/json",
+        },
+    }).then(() => {
+        location.replace("/");
     });
 }

@@ -1,0 +1,62 @@
+h1 {
+    font: bold 28px var(--serif);
+    font-style: italic;
+    text-align: center;
+    padding: 36px 0 24px 0;
+    color: var(--content);
+    background: var(--bg);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    width: 100%;
+    transition: 0.2s ease;
+    transition-property: padding, background-color;
+    position: absolute;
+
+    & span {
+        transition: opacity 0.1s ease;
+        opacity: 1;
+    }
+
+    & .page-title-ref {
+        font-weight: normal;
+        font-style: normal;
+    }
+}
+
+.scrolled-past {
+    & h1 {
+        padding: 12px 0;
+        border-bottom: 1px solid var(--content);
+        background: var(--clearbg);
+        font-size: 21px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 3;
+    }
+
+    & #topnav {
+        opacity: 0;
+    }
+}
+
+main {
+    padding-top: 100px;
+}
+
+#topnav {
+    padding: 6px;
+    border-style: solid;
+    border-color: var(--content);
+    border-width: 1px 0;
+    background: var(--shadow);
+    text-align: center;
+    opacity: 1;
+    transition: opacity 0.1s;
+
+    & a {
+        margin: 0 12px;
+        font: 11px var(--sans);
+        color: var(--content);
+    }
+}

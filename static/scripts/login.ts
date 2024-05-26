@@ -1,7 +1,11 @@
+import "./universal.js";
 
+const loginButton = document.getElementById("login-button") as HTMLButtonElement;
 const nameInput = document.getElementById("name-input") as HTMLInputElement;
 const codeInput = document.getElementById("code-input") as HTMLInputElement;
 const errorMsg = document.getElementById("error-msg")!;
+
+loginButton.onclick = login;
 
 document.body.onkeydown = ev => {
     errorMsg.style.display = "none";

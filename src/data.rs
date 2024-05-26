@@ -1,13 +1,15 @@
-use std::{collections::HashMap, fs::File};
+use std::{collections::HashMap, fs::File, hash::Hash};
 
+use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, Utc};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct Index {
-    users: HashMap<String, User>,
-    volumes: HashMap<String, Volume>,
-    entries: HashMap<String, Entry>,
-    sections: HashMap<u32, Section>,
+    users: IndexMap<String, User>,
+    volumes: IndexMap<String, Volume>,
+    entries: IndexMap<String, Entry>,
+    sections: IndexMap<u32, Section>,
 }
 
 impl Index {
@@ -25,7 +27,7 @@ impl Index {
 
         let volumes = File::open("content/volumes.json").unwrap();
         let volumes: Vec<String> = serde_json::from_reader(volumes).unwrap();
-        let volumes: HashMap<String, Volume> = volumes
+        let volumes: IndexMap<String, Volume> = volumes
             .into_iter()
             .map(|v| {
                 let volume = File::open(format!("content/volumes/{v}.json")).unwrap();
@@ -34,7 +36,7 @@ impl Index {
             })
             .collect();
 
-        let entries: HashMap<String, Entry> = volumes
+        let entries: IndexMap<String, Entry> = volumes
             .values()
             .map(|v| v.entries.iter())
             .flatten()
@@ -157,6 +159,7 @@ pub struct User {
     codes: Vec<String>,
     widgets: Vec<String>,
     history: Option<Vec<History>>,
+    preferences: HashMap<String, String>,
 }
 
 impl User {
@@ -175,13 +178,63 @@ impl User {
     pub fn history(&self) -> Option<&[History]> {
         self.history.as_ref().map(|h| h.as_ref())
     }
+
+    pub fn read_section(&mut self, section: u32, progress: usize, finished: bool) {
+        let now = Utc::now().timestamp();
+        let history = self.init_history();
+        match history.iter_mut().find(|h| h.section == section) {
+            Some(section) => {
+                section.ever_finished |= finished;
+                section.progress = progress;
+                section.timestamp = now;
+            }
+            None => {
+                history.push(History {
+                    section,
+                    progress,
+                    timestamp: now,
+                    ever_finished: finished,
+                });
+            }
+        }
+    }
+
+    pub fn empty_history(&mut self) {
+        self.history = Some(Vec::new());
+    }
+
+    pub fn widgets(&self) -> &[String] {
+        &self.widgets
+    }
+
+    pub fn set_widgets(&mut self, widgets: Vec<String>) {
+        self.widgets = widgets;
+    }
+
+    pub fn preferences(&self) -> &HashMap<String, String> {
+        &self.preferences
+    }
+
+    pub fn preferences_mut(&mut self) -> &mut HashMap<String, String> {
+        &mut self.preferences
+    }
+
+    fn init_history(&mut self) -> &mut Vec<History> {
+        match self.history {
+            Some(ref mut history) => history,
+            None => {
+                self.history = Some(Vec::new());
+                self.history.as_mut().unwrap()
+            }
+        }
+    }
 }
 
 impl Save for User {
     type Id = String;
 
     fn save(&self, id: &Self::Id) {
-        let user = File::open(format!("users/{id}.json")).unwrap();
+        let user = File::create(format!("users/{id}.json")).unwrap();
         serde_json::to_writer_pretty(user, self).unwrap();
     }
 
@@ -203,7 +256,26 @@ pub enum UserPrivilege {
 pub struct History {
     section: u32,
     progress: usize,
-    timestamp: u64,
+    timestamp: i64,
+    ever_finished: bool,
+}
+
+impl History {
+    pub fn section(&self) -> u32 {
+        self.section
+    }
+
+    pub fn progress(&self) -> usize {
+        self.progress
+    }
+
+    pub fn timestamp(&self) -> DateTime<Utc> {
+        DateTime::from_timestamp(self.timestamp, 0).unwrap()
+    }
+
+    pub fn ever_finished(&self) -> bool {
+        self.ever_finished
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -232,13 +304,17 @@ impl Volume {
     pub fn entries<'a>(&'a self, index: &'a Index) -> impl Iterator<Item = EntryWrapper> {
         self.entries.iter().filter_map(|e| index.entry(e))
     }
+
+    pub fn volume_count(&self) -> usize {
+        self.volume_count
+    }
 }
 
 impl Save for Volume {
     type Id = String;
 
     fn save(&self, id: &Self::Id) {
-        let volume = File::open(format!("content/volumes/{id}.json")).unwrap();
+        let volume = File::create(format!("content/volumes/{id}.json")).unwrap();
         serde_json::to_writer_pretty(volume, self).unwrap();
     }
 
@@ -263,6 +339,7 @@ pub enum ContentType {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Entry {
     title: String,
+    old_ids: Vec<String>,
     parent_volume: (String, usize),
     author: String,
     summary: String,
@@ -275,6 +352,18 @@ impl Entry {
         &self.title
     }
 
+    pub fn parent_volume_id(&self) -> &str {
+        &self.parent_volume.0
+    }
+
+    pub fn parent_volume_part(&self) -> usize {
+        self.parent_volume.1
+    }
+
+    pub fn parent_volume<'a>(&self, index: &'a Index) -> VolumeWrapper<'a> {
+        index.volume(&self.parent_volume.0).unwrap()
+    }
+
     pub fn description(&self) -> &str {
         &self.description
     }
@@ -282,13 +371,17 @@ impl Entry {
     pub fn summary(&self) -> &str {
         &self.summary
     }
+
+    pub fn section_ids(&self) -> &[u32] {
+        &self.sections
+    }
 }
 
 impl Save for Entry {
     type Id = String;
 
     fn save(&self, id: &Self::Id) {
-        let volume = File::open(format!("content/entries/{id}.json")).unwrap();
+        let volume = File::create(format!("content/entries/{id}.json")).unwrap();
         serde_json::to_writer_pretty(volume, self).unwrap();
     }
 
@@ -302,6 +395,7 @@ pub type EntryWrapper<'a> = Wrapper<'a, Entry>;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Section {
+    heading: Option<String>,
     parent_entry: String,
     status: ContentStatus,
     date: String,
@@ -309,13 +403,52 @@ pub struct Section {
     description: String,
     comments: Vec<Comment>,
     perspectives: Vec<u32>,
+    length: usize,
+}
+
+impl Section {
+    pub fn parent_entry_id(&self) -> &str {
+        &self.parent_entry
+    }
+
+    pub fn parent_entry<'a>(&self, index: &'a Index) -> EntryWrapper<'a> {
+        index.entry(&self.parent_entry).unwrap()
+    }
+
+    pub fn status(&self) -> ContentStatus {
+        self.status.clone()
+    }
+
+    pub fn date(&self) -> NaiveDate {
+        NaiveDate::parse_from_str(&self.date, "%Y-%m-%d").unwrap()
+    }
+
+    pub fn summary(&self) -> &str {
+        &self.summary
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn length(&self) -> usize {
+        self.length
+    }
+
+    pub fn length_str(&self) -> String {
+        if self.length < 2000 {
+            (self.length / 10 * 10).to_string()
+        } else {
+            format!("{:.1}k", self.length / 1000)
+        }
+    }
 }
 
 impl Save for Section {
     type Id = u32;
 
     fn save(&self, id: &Self::Id) {
-        let section = File::open(format!("content/sections/{id}.json")).unwrap();
+        let section = File::create(format!("content/sections/{id}.json")).unwrap();
         serde_json::to_writer_pretty(section, self).unwrap();
     }
 
@@ -348,13 +481,6 @@ pub trait Save {
     
     fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized;
 }
-
-// pub trait Upgrade<I> : for<'a> Save<'a, Id = I> {
-
-//     fn get_mut<'b>(index: &'b mut Index, id: I) -> WrapperMut<'b, Self>
-//     where
-//         Self: Sized + Save<'b>;
-// }
 
 pub struct Wrapper<'a, T>
 where
@@ -461,4 +587,22 @@ macro_rules! upgrade {
     ($data:ident, $index:ident) => {
         let $data = $data.into_mut().resolve(&mut $index);
     };
+}
+
+pub fn date(date: NaiveDate) -> String {
+    let now = Utc::now();
+    if now.year_ce() == date.year_ce() {
+        date.format("%b %-d").to_string()
+    } else {
+        date.format("%b %-d, %Y").to_string()
+    }
+}
+
+pub fn roman_numeral(number: usize) -> &'static str {
+    match number {
+        1 => "I",
+        2 => "II",
+        3 => "III",
+        _ => "?",
+    }
 }

@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.7.5"
-chrono = "0.4.38"
+axum = { version = "0.7.5", features = ["json"] }
+chrono = { version = "0.4.38", features = ["now"] }
 indexmap = "2.2.6"
 maud = { version = "0.26.0", features = ["axum"] }
 serde = { version = "1.0.202", features = ["derive"] }

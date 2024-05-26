@@ -1,14 +1,24 @@
+use std::sync::{Arc, Mutex};
+
 use axum::{routing::{get, post}, Router};
+
+#[derive(Clone)]
+pub struct AppState {
+    index: Arc<Mutex<data::Index>>,
+}
 
 #[tokio::main]
 async fn main() {
-    let state = data::Index::init();
+    let state = AppState {
+        index: Arc::new(Mutex::new(data::Index::init())),
+    };
 
     let app = Router::new()
         .route("/script/:file", get(routes::script))
         .route("/style/:file", get(routes::style))
         .route("/login/:name/:code", post(routes::login))
         .route("/register", post(routes::register))
+        .route("/preferences", post(routes::preferences))
         .route("/", get(routes::home))
         .with_state(state);
 

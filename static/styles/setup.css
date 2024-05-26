@@ -30,15 +30,15 @@ button {
     transition-duration: 0.1s;
     transition-timing-function: ease;
     touch-action: manipulation;
-}
 
-button + button {
-    margin-top: 12px;
-}
+    & + button {
+        margin-top: 12px;
+    }
 
-button.selected {
-    background: var(--content);
-    color: var(--bg);
+    &.selected {
+        background: var(--content);
+        color: var(--bg);
+    }
 }
 
 #welcome {
@@ -78,14 +78,14 @@ button.selected {
     border: 1px solid var(--content);
     background: var(--bg);
     transition: background-color 0.1s ease;
-}
 
-.entry.selected {
-    background: var(--content);
-}
+    &.selected {
+        background: var(--content);
+    }
 
-.entry + .entry {
-    margin-top: 12px;
+    & + .entry {
+        margin-top: 12px;
+    }
 }
 
 h3 {
@@ -108,26 +108,26 @@ h3 {
     margin-bottom: 12px;
     display: flex;
     align-items: center;
-}
 
-.widget:first-child {
-    margin-top: 12px;
-}
+    &:first-child {
+        margin-top: 12px;
+    }
 
-.widget:last-child {
-    margin-bottom: 24px;
-}
+    &:last-child {
+        margin-bottom: 24px;
+    }
 
-.widget h3 {
-    font: 18px var(--sans);
-}
+    & h3 {
+        font: 18px var(--sans);
+    }
 
-.widget span {
-    width: 16px;
-    margin-right: 12px;
-    text-align: right;
-    font: 18px var(--serif);
-    color: var(--content);
-    opacity: 0;
-    transition: opacity 0.1s ease;
+    & span {
+        width: 16px;
+        margin-right: 12px;
+        text-align: right;
+        font: 18px var(--serif);
+        color: var(--content);
+        opacity: 0;
+        transition: opacity 0.1s ease;
+    }
 }

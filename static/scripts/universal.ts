@@ -3,7 +3,7 @@ if (!localStorage.edatTheme) {
     changeThemeSetting("system");
 }
 
-function changeThemeSetting(themeSetting: string) {
+export function changeThemeSetting(themeSetting: string) {
     if (themeSetting == localStorage.edatThemeSetting) {
         return;
     }
@@ -20,7 +20,7 @@ function changeThemeSetting(themeSetting: string) {
     }
 }
 
-function changeTheme(theme: string) {
+export function changeTheme(theme: string) {
     if (theme == localStorage.edatTheme) {
         return;
     }

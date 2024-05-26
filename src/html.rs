@@ -1,3 +1,5 @@
+use std::sync::MutexGuard;
+
 use axum::http::HeaderMap;
 use maud::{html, Markup, PreEscaped, DOCTYPE};
 
@@ -13,6 +15,7 @@ fn universal(
         Some("dark") => Some("dark-theme"),
         _ => None,
     };
+
     html! {
         (DOCTYPE)
         head {
@@ -22,8 +25,7 @@ fn universal(
         }
         body class=[dark_theme] {
             (body)
-            script src={"script/" (resource) ".js"} {};
-            script src={"script/universal.js"} {};
+            script type="module" src={"script/" (resource) ".js"} {};
         }
     }
 }
@@ -43,7 +45,7 @@ pub fn login(headers: &HeaderMap) -> Markup {
                 input #code-input name="code" type="text";
             }
             li {
-                button type="submit" onclick="login()" { "LOGIN" }
+                button type="submit" id="login-button" { "LOGIN" }
             }
         }
         p #error-msg style="display: none;" { "Invalid credentials." }
@@ -51,10 +53,20 @@ pub fn login(headers: &HeaderMap) -> Markup {
     universal(login, headers, "login", "Login")
 }
 
-pub fn setup(headers: &HeaderMap, index: &data::Index) -> Markup {
-    let volumes_to_choose_from = index
-        .volumes()
-        .filter(|v| v.content_type() == data::ContentType::Journal);
+pub mod setup {
+    pub struct Entry {
+        pub id: String,
+        pub title: String,
+        pub description: String,
+    }
+
+    pub struct Volume {
+        pub title: String,
+        pub entries: Vec<Entry>,
+    }
+}
+
+pub fn setup(headers: &HeaderMap, volumes: Vec<setup::Volume>) -> Markup {
     let setup = html! {
         #welcome {
             h1 { "Every Day’s a Thursday" }
@@ -73,12 +85,12 @@ pub fn setup(headers: &HeaderMap, index: &data::Index) -> Markup {
         }
         #choose-entries {
             p { "Using the best of your knowledge, select the entries below that you believe you may have read before." }
-            @for volume in volumes_to_choose_from {
-                h2.volume { (PreEscaped(volume.title())) }
-                @for entry in volume.entries(&index) {
-                    .entry edat-entry=(entry.id()) {
-                        h3 { (PreEscaped(entry.title())) }
-                        p { (PreEscaped(entry.description())) }
+            @for volume in volumes {
+                h2.volume { (PreEscaped(volume.title)) }
+                @for entry in volume.entries {
+                    .entry edat-entry=(entry.id) {
+                        h3 { (PreEscaped(entry.title)) }
+                        p { (PreEscaped(entry.description)) }
                     }
                 }
             }
@@ -110,13 +122,6 @@ pub fn setup(headers: &HeaderMap, index: &data::Index) -> Markup {
             }
             .widget {
                 span {}
-                button #timeline-widget {
-                    h3 { "The timeline" }
-                    p { "Track your progress through the chronology" }
-                }
-            }
-            .widget {
-                span {}
                 button #random-widget {
                     h3 { "Random entry" }
                     p { "Reading recommendation" }
@@ -142,4 +147,186 @@ pub fn setup(headers: &HeaderMap, index: &data::Index) -> Markup {
         }
     };
     universal(setup, headers, "setup", "Setup account")
+}
+
+pub mod home {
+    use maud::{html, Markup, PreEscaped};
+
+    use crate::data;
+
+    pub struct RecentWidget {
+        pub sections: Vec<RecentSection>,
+        pub expand: bool,
+    }
+
+    impl RecentWidget {
+        fn section(&self, section: &RecentSection) -> Markup {
+            html! {
+                @let concise = html! {
+                    p.description { (PreEscaped(&section.description)) }
+                };
+                @let detailed = html! {
+                    p.summary { (PreEscaped(&section.summary)) }
+                    span.details {
+                        span.index {
+                            @if section.in_entry.1 == 1 {
+                                "Standalone"
+                            } @else {
+                                "Section " (section.in_entry.0)
+                            }
+                        }
+                        span.wordcount {
+                            (section.length) " words"
+                        }
+                        span.date {
+                            "Added " (section.date)
+                        }
+                    }
+                };
+                .section {
+                    a.section-info href={ "/section/" (section.id) } {
+                        @let volume = html! {
+                            @if section.parent_volume.2 == 1 {
+                                (PreEscaped(&section.parent_volume.0))
+                            } @else {
+                                (PreEscaped(&section.parent_volume.0))
+                                " vol. "
+                                (data::roman_numeral(section.parent_volume.1 + 1))
+                            }
+                        };
+                        @if self.expand {
+                            p.volume.detailed {
+                                (volume)
+                            }
+                        } @else {
+                            p.volume.detailed
+                                style="display: none"
+                            {
+                                (volume)
+                            }
+                        }
+                        h3 { (PreEscaped(&section.parent_entry)) }
+                        @if self.expand {
+                            .concise style="display: none" {
+                                (concise)
+                            }
+                            .detailed {
+                                (detailed)
+                            }
+                        } @else {
+                            .concise {
+                                (concise)
+                            }
+                            .detailed style="display: none" {
+                                (detailed)
+                            }
+                        }
+                    }
+                    @if !section.read {
+                        span.unread { "UNREAD" }
+                    } @else {
+                        span.unread style="opacity: 0" { "UNREAD" }
+                    }
+                    @if let Some((id, ref description)) = section.previous {
+                        @let previous = html! {
+                            p.previous-label {"Previous section"}
+                            p.previous-description { (PreEscaped(description)) }
+                        };
+                        @if self.expand {
+                            a.previous.detailed
+                                href={"/section/" (id)}
+                            {
+                                (previous)
+                            }
+                        } @else {
+                            a.previous.detailed
+                                style="display: none"
+                                href={"/section/" (id)}
+                            {
+                                (previous)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    impl Widget for RecentWidget {
+        fn html(&self) -> Markup {
+            let detail_class = if self.expand {
+                "show-detailed"
+            } else {
+                "show-concise"
+            };
+            html! {
+                h2 { "Recent uploads" }
+                #recent-carousel class=(detail_class) {
+                    @for section in &self.sections {
+                        (self.section(section))
+                    }
+                }
+                button id="recent-expand" {
+                    @if self.expand {
+                        span.detailed { "Hide details" }
+                        span.concise style="display: none" { "Show details" }
+                    } @else {
+                        span.detailed style="display: none" { "Hide details" }
+                        span.concise { "Show details" }
+                    }
+                }
+            }
+        }
+
+        fn id(&self) -> &'static str {
+            "recent-widget"
+        }
+    }
+
+    pub struct RecentSection {
+        pub id: u32,
+        pub parent_entry: String,
+        pub parent_volume: (String, usize, usize),
+        pub in_entry: (usize, usize),
+        pub previous: Option<(u32, String)>,
+        pub description: String,
+        pub summary: String,
+        pub date: String,
+        pub length: String,
+        pub read: bool,
+    }
+
+    pub trait Widget {
+        fn html(&self) -> Markup;
+
+        fn id(&self) -> &'static str;
+    }
+}
+
+pub fn home(headers: HeaderMap, widgets: Vec<Box<dyn home::Widget>>) -> maud::Markup {
+    let body = html! {
+        h1 #title { span { "Every Day’s a Thursday" } }
+        main {
+            nav #topnav {
+                a href="/history" { "HISTORY" }
+                a href="/library" { "LIBRARY" }
+                a href="/index" { "INDEX" }
+                a href="/profile" { "PROFILE" }
+            }
+            @for widget in &widgets {
+                .widget #(widget.id()) {
+                    (widget.html())
+                }
+            }
+            @if widgets.len() == 0 {
+                .widget #empty-widget {
+                    h2 { "Customize your homepage" }
+                    p { "You haven’t added any elements to your homepage yet, like quick access to recent entries or library shortcuts, but you can do so in your settings." }
+                    a href="/me" { button { "Go to settings" } }
+                }
+            }
+        }
+        p { "TEST" }
+    };
+    universal(body, &headers, "home", "Home")
 }
