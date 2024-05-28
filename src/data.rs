@@ -1,6 +1,6 @@
-use std::{collections::HashMap, fs::File, hash::Hash};
+use std::{collections::HashMap, fs::File, ops::Deref};
 
-use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +10,7 @@ pub struct Index {
     volumes: IndexMap<String, Volume>,
     entries: IndexMap<String, Entry>,
     sections: IndexMap<u32, Section>,
+    next_section_id: u32,
 }
 
 impl Index {
@@ -58,11 +59,20 @@ impl Index {
             })
             .collect();
 
+        #[derive(Deserialize)]
+        struct IndexFile {
+            next_section_id: u32,
+        }
+
+        let index_file = File::open("content/index.json").unwrap();
+        let index_file: IndexFile = serde_json::from_reader(index_file).unwrap();
+
         Index {
             users,
             volumes,
             entries,
             sections,
+            next_section_id: index_file.next_section_id,
         }
     }
 
@@ -96,12 +106,32 @@ impl Index {
         self.entries.get(id).map(|e| Wrapper::new(e, id.to_owned()))
     }
 
+    pub fn remove_entry(&mut self, id: &str) {
+        if let Some(entry) = self.entry(id) {
+            let parent_volume = entry.parent_volume_id().to_owned();
+            let parent_volume = &mut self.volumes[&parent_volume];
+            let i = parent_volume.entries.iter().position(|e| e == id).unwrap();
+            parent_volume.entries.remove(i);
+            self.entries.shift_remove(id);
+        }
+    }
+
     pub fn sections(&self) -> impl Iterator<Item = SectionWrapper> {
         self.sections.iter().map(|(&k, s)| Wrapper::new(s, k))
     }
 
     pub fn section(&self, id: u32) -> Option<SectionWrapper> {
         self.sections.get(&id).map(|s| Wrapper::new(s, id))
+    }
+
+    pub fn remove_section(&mut self, id: u32) {
+        if let Some(section) = self.section(id) {
+            let parent_entry = section.parent_entry_id().to_owned();
+            let parent_entry = &mut self.entries[&parent_entry];
+            let i = parent_entry.sections.iter().position(|s| *s == id).unwrap();
+            parent_entry.sections.remove(i);
+            self.sections.shift_remove(&id);
+        }
     }
 
     pub fn users_mut(&mut self) -> impl Iterator<Item = UserWrapperMut> {
@@ -171,8 +201,28 @@ impl User {
         &self.last_name
     }
 
+    pub fn privilege(&self) -> UserPrivilege {
+        self.privilege.clone()
+    }
+
     pub fn has_code(&self, code: &str) -> bool {
         self.codes.iter().any(|c| c == code)
+    }
+
+    pub fn codes(&self) -> &[String] {
+        &self.codes
+    }
+
+    pub fn add_code(&mut self, code: String) {
+        if !self.codes.contains(&code) {
+            self.codes.push(code);
+        }
+    }
+
+    pub fn remove_code(&mut self, code: &str) {
+        if let Some(i) = self.codes.iter().position(|c| c == code) {
+            self.codes.remove(i);
+        }
     }
 
     pub fn history(&self) -> Option<&[History]> {
@@ -238,7 +288,10 @@ impl Save for User {
         serde_json::to_writer_pretty(user, self).unwrap();
     }
 
-    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized {
+    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self>
+    where
+        Self: Sized,
+    {
         index.user_mut(&id).unwrap()
     }
 }
@@ -246,7 +299,7 @@ impl Save for User {
 pub type UserWrapperMut<'a> = WrapperMut<'a, User>;
 pub type UserWrapper<'a> = Wrapper<'a, User>;
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum UserPrivilege {
     Owner,
     Reader,
@@ -261,7 +314,7 @@ pub struct History {
 }
 
 impl History {
-    pub fn section(&self) -> u32 {
+    pub fn section_id(&self) -> u32 {
         self.section
     }
 
@@ -297,6 +350,10 @@ impl Volume {
         self.subtitle.as_ref().map(|x| x.as_str())
     }
 
+    pub fn owner_id(&self) -> &str {
+        &self.owner
+    }
+
     pub fn content_type(&self) -> ContentType {
         self.content_type.clone()
     }
@@ -318,7 +375,10 @@ impl Save for Volume {
         serde_json::to_writer_pretty(volume, self).unwrap();
     }
 
-    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized {
+    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self>
+    where
+        Self: Sized,
+    {
         index.volume_mut(&id).unwrap()
     }
 }
@@ -326,7 +386,7 @@ impl Save for Volume {
 pub type VolumeWrapperMut<'a> = WrapperMut<'a, Volume>;
 pub type VolumeWrapper<'a> = Wrapper<'a, Volume>;
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ContentType {
     Journal,
     Archive,
@@ -342,8 +402,8 @@ pub struct Entry {
     old_ids: Vec<String>,
     parent_volume: (String, usize),
     author: String,
-    summary: String,
     description: String,
+    summary: String,
     sections: Vec<u32>,
 }
 
@@ -356,12 +416,16 @@ impl Entry {
         &self.parent_volume.0
     }
 
-    pub fn parent_volume_part(&self) -> usize {
+    pub fn parent_volume_index(&self) -> usize {
         self.parent_volume.1
     }
 
     pub fn parent_volume<'a>(&self, index: &'a Index) -> VolumeWrapper<'a> {
         index.volume(&self.parent_volume.0).unwrap()
+    }
+
+    pub fn author_id(&self) -> &str {
+        &self.author
     }
 
     pub fn description(&self) -> &str {
@@ -375,6 +439,10 @@ impl Entry {
     pub fn section_ids(&self) -> &[u32] {
         &self.sections
     }
+
+    pub fn sections<'a>(&'a self, index: &'a Index) -> impl Iterator<Item = SectionWrapper> {
+        self.sections.iter().filter_map(|s| index.section(*s))
+    }
 }
 
 impl Save for Entry {
@@ -385,7 +453,10 @@ impl Save for Entry {
         serde_json::to_writer_pretty(volume, self).unwrap();
     }
 
-    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized {
+    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self>
+    where
+        Self: Sized,
+    {
         index.entry_mut(&id).unwrap()
     }
 }
@@ -399,14 +470,22 @@ pub struct Section {
     parent_entry: String,
     status: ContentStatus,
     date: String,
-    summary: String,
     description: String,
+    summary: String,
     comments: Vec<Comment>,
     perspectives: Vec<u32>,
     length: usize,
 }
 
 impl Section {
+    pub fn heading(&self) -> Option<&str> {
+        self.heading.as_ref().map(|h| h.as_ref())
+    }
+
+    pub fn set_heading(&mut self, heading: Option<String>) {
+        self.heading = heading;
+    }
+
     pub fn parent_entry_id(&self) -> &str {
         &self.parent_entry
     }
@@ -431,6 +510,14 @@ impl Section {
         &self.description
     }
 
+    pub fn comments(&self) -> &[Comment] {
+        &self.comments
+    }
+
+    pub fn perspective_ids(&self) -> &[u32] {
+        &self.perspectives
+    }
+
     pub fn length(&self) -> usize {
         self.length
     }
@@ -452,7 +539,10 @@ impl Save for Section {
         serde_json::to_writer_pretty(section, self).unwrap();
     }
 
-    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized {
+    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self>
+    where
+        Self: Sized,
+    {
         index.section_mut(id).unwrap()
     }
 }
@@ -460,7 +550,7 @@ impl Save for Section {
 pub type SectionWrapperMut<'a> = WrapperMut<'a, Section>;
 pub type SectionWrapper<'a> = Wrapper<'a, Section>;
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum ContentStatus {
     Missing,
     Incomplete,
@@ -470,36 +560,46 @@ pub enum ContentStatus {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Comment {
     author: String,
-    timestamp: u64,
+    timestamp: i64,
     contents: String,
+}
+
+impl Comment {
+    pub fn author_id(&self) -> &str {
+        &self.author
+    }
+
+    pub fn timestamp(&self) -> DateTime<Utc> {
+        DateTime::from_timestamp(self.timestamp, 0).unwrap()
+    }
+
+    pub fn contents(&self) -> &str {
+        &self.contents
+    }
 }
 
 pub trait Save {
     type Id;
 
     fn save(&self, id: &Self::Id);
-    
-    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self> where Self: Sized;
+
+    fn get_mut<'b>(index: &'b mut Index, id: Self::Id) -> WrapperMut<'b, Self>
+    where
+        Self: Sized;
 }
 
-pub struct Wrapper<'a, T>
-where
-    T: Save,
-{
+pub trait AnyWrapper<T: Save>: Deref<Target = T> {
+    fn id(&self) -> &T::Id;
+}
+
+pub struct Wrapper<'a, T: Save> {
     id: T::Id,
     data: &'a T,
 }
 
-impl<'a, T> Wrapper<'a, T>
-where
-    T: Save,
-{
+impl<'a, T: Save> Wrapper<'a, T> {
     fn new(data: &'a T, id: T::Id) -> Self {
         Wrapper { id, data }
-    }
-
-    pub fn id(&self) -> &T::Id {
-        &self.id
     }
 
     pub fn into_mut<'b>(self) -> IntoMut<T> {
@@ -507,10 +607,13 @@ where
     }
 }
 
-impl<'a, T> std::ops::Deref for Wrapper<'a, T>
-where
-    T: Save,
-{
+impl<T: Save> AnyWrapper<T> for Wrapper<'_, T> {
+    fn id(&self) -> &T::Id {
+        &self.id
+    }
+}
+
+impl<'a, T: Save> Deref for Wrapper<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -518,19 +621,13 @@ where
     }
 }
 
-pub struct WrapperMut<'a, T>
-where
-    T: Save,
-{
+pub struct WrapperMut<'a, T: Save> {
     id: T::Id,
     data: &'a mut T,
     modified: bool,
 }
 
-impl<'a, T> WrapperMut<'a, T>
-where
-    T: Save,
-{
+impl<'a, T: Save> WrapperMut<'a, T> {
     fn new(data: &'a mut T, id: T::Id) -> Self {
         WrapperMut {
             id,
@@ -538,16 +635,9 @@ where
             modified: false,
         }
     }
-
-    pub fn id(&self) -> &T::Id {
-        &self.id
-    }
 }
 
-impl<'a, T> std::ops::Deref for WrapperMut<'a, T>
-where
-    T: Save,
-{
+impl<'a, T: Save> Deref for WrapperMut<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -555,22 +645,22 @@ where
     }
 }
 
-impl<'a, T> std::ops::DerefMut for WrapperMut<'a, T>
-where
-    T: Save,
-{
+impl<'a, T: Save> std::ops::DerefMut for WrapperMut<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.modified = true;
         &mut self.data
     }
 }
 
-impl<'a, T> Drop for WrapperMut<'a, T>
-where
-    T: Save,
-{
+impl<'a, T: Save> Drop for WrapperMut<'a, T> {
     fn drop(&mut self) {
         self.data.save(&self.id);
+    }
+}
+
+impl<T: Save> AnyWrapper<T> for WrapperMut<'_, T> {
+    fn id(&self) -> &T::Id {
+        &self.id
     }
 }
 
@@ -589,7 +679,16 @@ macro_rules! upgrade {
     };
 }
 
-pub fn date(date: NaiveDate) -> String {
+pub fn date_naive(date: &NaiveDate) -> String {
+    let now = Utc::now();
+    if now.year_ce() == date.year_ce() {
+        date.format("%b %-d").to_string()
+    } else {
+        date.format("%b %-d, %Y").to_string()
+    }
+}
+
+pub fn date(date: &DateTime<Utc>) -> String {
     let now = Utc::now();
     if now.year_ce() == date.year_ce() {
         date.format("%b %-d").to_string()

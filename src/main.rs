@@ -19,6 +19,8 @@ async fn main() {
         .route("/login/:name/:code", post(routes::login))
         .route("/register", post(routes::register))
         .route("/preferences", post(routes::preferences))
+        .route("/terminal", get(routes::terminal))
+        .route("/cmd", post(routes::cmd))
         .route("/", get(routes::home))
         .with_state(state);
 

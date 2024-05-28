@@ -1,0 +1,42 @@
+@import url("/style/universal.css");
+
+body {
+    padding: 24px;
+}
+
+p, input, label, li, button {
+    color: var(--content);
+    font: 14px var(--mono);
+    text-align: left;
+}
+
+input, textarea, button {
+    border: 1px solid var(--content);
+    padding: 6px 12px;
+    width: 100%;
+    background: var(--bg);
+
+    &::placeholder {
+        color: var(--gray);
+    }
+}
+
+p, input, textarea, button {
+    margin-bottom: 12px;
+}
+
+textarea {
+    height: 60px;
+}
+
+label, input, textarea {
+    display: block;
+}
+
+#command {
+    margin-bottom: 24px;
+}
+
+#forbidden {
+    color: red;
+}

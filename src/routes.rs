@@ -1,13 +1,15 @@
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::{fs::File, path::Path};
 
 use axum::extract::{Path as ReqPath, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
+use crate::data::AnyWrapper;
 use crate::html::home::Widget;
 use crate::{data, html, upgrade, AppState};
 
@@ -143,11 +145,11 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
                     .to_owned();
                 (previous_section, previous_description)
             });
-            let read = history.iter().any(|h| h.section() == *section.id());
+            let read = history.iter().any(|h| h.section_id() == *section.id());
             let parent_volume = parent_entry.parent_volume(&index);
             let parent_volume = (
                 parent_volume.title().to_owned(),
-                parent_entry.parent_volume_part(),
+                parent_entry.parent_volume_index(),
                 parent_volume.volume_count(),
             );
 
@@ -156,7 +158,7 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
                 parent_volume,
                 parent_entry: parent_entry.title().to_owned(),
                 in_entry: (in_entry + 1, parent_entry.section_ids().len()),
-                date: data::date(section.date()),
+                date: data::date_naive(&section.date()),
                 previous: following,
                 description: section.description().to_owned(),
                 summary: section.summary().to_owned(),
@@ -164,9 +166,7 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
                 read,
             });
         }
-        let expand = user
-            .preferences()
-            .get("expand_recents");
+        let expand = user.preferences().get("expand_recents");
         let expand = match expand {
             Some(expand) => expand == "true",
             None => true,
@@ -185,7 +185,7 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
         widgets.push(widget);
     }
 
-    html::home(headers, widgets)
+    html::home(&headers, widgets)
 }
 
 pub async fn preferences(
@@ -252,4 +252,315 @@ fn login_check<'a>(
 pub fn get_cookie<'a>(headers: &'a HeaderMap, key: &str) -> Option<&'a str> {
     let cookie = headers.get("Cookie")?.to_str().unwrap();
     cookie.split(&format!("{key}=")).nth(1)?.split(';').next()
+}
+
+pub async fn terminal(headers: HeaderMap, State(state): State<AppState>) -> maud::Markup {
+    let index = state.index.lock().unwrap();
+    let user = match login_check(&headers, &index) {
+        Ok(user) => user,
+        Err(html) => return html,
+    };
+    html::terminal(&headers, user.privilege() == data::UserPrivilege::Owner)
+}
+
+mod cmd {
+    use serde::Deserialize;
+
+    use crate::data;
+
+    #[derive(Deserialize)]
+    pub enum Body {
+        GetSection {
+            id: u32,
+        },
+        NewSection {
+            id: u32,
+        },
+        SetSection {
+            id: u32,
+            heading: String,
+            description: String,
+            summary: String,
+        },
+        SetNewSection {
+            id: u32,
+            position: Position<String, u32>,
+            heading: String,
+            description: String,
+            summary: String,
+        },
+        DeleteSection {
+            id: u32,
+        },
+        MoveSection {
+            id: u32,
+            position: Position<String, u32>,
+        },
+        SectionStatus {
+            id: String,
+            status: data::ContentStatus,
+        },
+        GetEntry {
+            id: String,
+        },
+        NewEntry {
+            id: String,
+        },
+        SetEntry {
+            id: String,
+            title: String,
+            description: String,
+            summary: String,
+        },
+        SetNewEntry {
+            id: String,
+            title: String,
+            position: Position<(String, usize), String>,
+            description: String,
+            summary: String,
+        },
+        DeleteEntry {
+            id: String,
+        },
+        MoveEntry {
+            id: String,
+            position: Position<(String, usize), String>,
+        },
+        GetVolume {
+            id: String,
+        },
+        NewVolume {
+            id: String,
+        },
+        SetVolume {
+            id: String,
+            title: String,
+            subtitle: String,
+        },
+        SetNewVolume {
+            id: String,
+            position: Position<(), String>,
+            title: String,
+            subtitle: String,
+        },
+        DeleteVolume {
+            id: String,
+        },
+        MoveVolume {
+            id: String,
+            position: Position<(), String>,
+        },
+        VolumeContentType {
+            id: String,
+            content_type: data::ContentType,
+        },
+        GetUser {
+            id: String,
+        },
+        SetUser {
+            first_name: String,
+            last_name: String,
+        },
+        NewUser {
+            first_name: String,
+            last_name: String,
+        },
+        DeleteUser {
+            id: String,
+        },
+        UserPrivilege {
+            id: String,
+            privilege: data::UserPrivilege,
+        },
+        AddUserCode {
+            id: String,
+            code: String,
+        },
+        RemoveUserCode {
+            id: String,
+            code: String,
+        },
+    }
+
+    #[derive(Deserialize)]
+    pub enum Position<C, I> {
+        StartOf(C),
+        Before(I),
+        After(I),
+        EndOf(C),
+    }
+}
+
+pub async fn cmd(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(body): Json<cmd::Body>,
+) -> Result<maud::Markup, maud::Markup> {
+    use html::terminal;
+    let index = state.index.lock().unwrap();
+
+    let get_user = |id| index.user(id).ok_or(terminal::error("user", id));
+    let get_volume = |id| index.volume(id).ok_or(terminal::error("volume", id));
+    let get_entry = |id| index.entry(id).ok_or(terminal::error("entry", id));
+    let get_section = |id| index.section(id).ok_or(terminal::error("section", id));
+
+    let user_info = |user: &dyn AnyWrapper<data::User>| {
+        let codes = user.codes().join(" ");
+        let mut history: Vec<(String, DateTime<Utc>)> = Vec::new();
+        if let Some(user_history) = user.history() {
+            for user_history_entry in user_history {
+                let section = index.section(user_history_entry.section_id()).unwrap();
+                let parent_entry = section.parent_entry_id();
+                let history_entry = history.iter_mut().find(|h| h.0 == parent_entry);
+                match history_entry {
+                    Some(history_entry) => {
+                        history_entry.1 = history_entry.1.max(user_history_entry.timestamp())
+                    }
+                    None => history.push((parent_entry.to_owned(), user_history_entry.timestamp())),
+                }
+            }
+        }
+        let history = history
+            .into_iter()
+            .map(|h| terminal::UserHistoryEntry {
+                entry: h.0,
+                date: data::date(&h.1),
+            })
+            .collect();
+        let preferences = user
+            .preferences()
+            .iter()
+            .map(|p| terminal::UserPreference {
+                setting: p.0.to_owned(),
+                switch: p.1.to_owned(),
+            })
+            .collect();
+        let widgets = user.widgets().join(" ");
+        terminal::UserInfo {
+            codes,
+            first_name: user.first_name().to_owned(),
+            last_name: user.last_name().to_owned(),
+            history,
+            preferences,
+            privilege: format!("{:?}", user.privilege()),
+            widgets,
+        }
+    };
+
+    let volume_info = |volume: &dyn AnyWrapper<data::Volume>| {
+        let entries = volume
+            .entries(&index)
+            .map(|e| terminal::VolumeEntry {
+                id: e.id().to_owned(),
+                description: e.description().to_owned(),
+            })
+            .collect();
+        terminal::VolumeInfo {
+            id: volume.id().to_owned(),
+            title: volume.title().to_owned(),
+            subtitle: volume.subtitle().unwrap_or("").to_owned(),
+            owner: volume.owner_id().to_owned(),
+            content_type: format!("{:?}", volume.content_type()),
+            entries,
+            volume_count: volume.volume_count(),
+        }
+    };
+
+    let entry_info = |entry: &dyn AnyWrapper<data::Entry>| {
+        let sections = entry
+            .sections(&index)
+            .map(|s| terminal::EntrySection {
+                id: s.id().to_owned(),
+                description: s.description().to_owned(),
+            })
+            .collect();
+        terminal::EntryInfo {
+            id: entry.id().to_owned(),
+            title: entry.title().to_owned(),
+            description: entry.description().to_owned(),
+            summary: entry.summary().to_owned(),
+            author: entry.author_id().to_owned(),
+            parent_volume: (
+                entry.parent_volume_id().to_owned(),
+                entry.parent_volume_index(),
+            ),
+            sections,
+        }
+    };
+
+    let section_info = |section: &dyn AnyWrapper<data::Section>| {
+        let parent_entry = section.parent_entry(&index);
+        let in_entry = parent_entry
+            .section_ids()
+            .iter()
+            .position(|s| s == section.id())
+            .unwrap();
+        let perspectives = section
+            .perspective_ids()
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let comments = section
+            .comments()
+            .iter()
+            .map(|c| terminal::SectionComment {
+                author: c.author_id().to_owned(),
+                contents: c.contents().to_owned(),
+                timestamp: data::date(&c.timestamp()),
+            })
+            .collect();
+        terminal::SectionInfo {
+            id: *section.id(),
+            heading: section.heading().unwrap_or("").to_owned(),
+            description: section.description().to_owned(),
+            summary: section.summary().to_owned(),
+            date: data::date_naive(&section.date()),
+            parent_entry: section.parent_entry_id().to_owned(),
+            in_entry: (in_entry, parent_entry.section_ids().len()),
+            length: section.length(),
+            status: format!("{:?}", section.status()),
+            perspectives,
+            comments,
+        }
+    };
+
+    use cmd::Body as B;
+    Ok(match body {
+        B::AddUserCode { id, code } => {
+            let user = get_user(&id)?;
+            upgrade!(user, index);
+            user.add_code(code);
+            html::terminal::user(&user_info(&user))
+        }
+        B::DeleteEntry { id } => {
+            let parent_volume = get_entry(&id)?.parent_volume_id();
+            let now = Utc::now().timestamp();
+            let dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
+            let data = File::open(format!("content/entries/{}.json", id)).unwrap();
+            let mut data_contents = String::new();
+            data.read_to_string(&mut data_contents);
+            dump.write_all(data_contents.as_bytes());
+            let parent_volume = get_volume(parent_volume)?;
+            index.remove_entry(&id);
+            html::terminal::volume(&volume_info(&parent_volume))
+        }
+        B::DeleteSection { id } => {
+            let parent_entry = get_section(id)?.parent_entry_id();
+            let now = Utc::now().timestamp();
+            let dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
+            let data = File::open(format!("content/sections/{}.json", id)).unwrap();
+            let mut data_contents = String::new();
+            data.read_to_string(&mut data_contents);
+            let contents = File::open(format!("content/sections/{}.txt", id)).unwrap();
+            let mut contents = String::new();
+            data.read_to_string(&mut contents);
+            dump.write_all(contents.as_bytes());
+            let parent_entry = get_entry(parent_entry)?;
+            index.remove_section(id);
+            html::terminal::entry(&entry_info(&parent_entry))
+        }
+    });
+
+    Ok(maud::html!("temp"))
 }
