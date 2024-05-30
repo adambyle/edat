@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::io::{Read, Write};
 use std::{fs::File, path::Path};
 
@@ -9,9 +10,8 @@ use axum::Json;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
-use crate::data::AnyWrapper;
 use crate::html::home::Widget;
-use crate::{data, html, upgrade, AppState};
+use crate::{data, html, AppState};
 
 pub async fn script(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
     static_file("scripts", file_name, "text/javascript")
@@ -55,8 +55,10 @@ pub async fn register(
     // Collect the sections the user has read.
     let mut sections: Vec<u32> = Vec::new();
     if body.entries.get(0).is_some_and(|e| e == "$all") {
+        // The user indicated they have read everything.
         sections.extend(index.sections().map(|s| *s.id()));
     } else {
+        // Load the specific entries.
         for entry in body.entries {
             let Some(entry) = index.entry(&entry) else {
                 continue;
@@ -83,8 +85,11 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
         Ok(user) => user,
         Err(html) => return html,
     };
+
+    // Direct the user to a setup screen if the history is uninitialized.
     let Some(history) = user.history() else {
-        // Initialize the entries a user may specify they have read.
+        // Collect the entries a user may specify they have read
+        // (from standard journal volumes).
         let volumes = index
             .volumes()
             .filter(|v| v.content_type() == data::ContentType::Journal)
@@ -110,14 +115,21 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
     let mut widgets = Vec::new();
 
     let recent_widget = || {
+        // Get all the complete sections from journal volumes.
         let mut sections: Vec<_> = index
             .sections()
             .filter(|s| {
-                s.parent_entry(&index).parent_volume(&index).content_type()
+                let parent_entry = index.entry(s.parent_entry_id()).unwrap();
+                index
+                    .volume(parent_entry.parent_volume_id())
+                    .unwrap()
+                    .content_type()
                     == data::ContentType::Journal
                     && s.status() == data::ContentStatus::Complete
             })
             .collect();
+
+        // Sort them by recency.
         sections.sort_by(|a, b| {
             let date_a = a.date();
             let date_b = b.date();
@@ -128,44 +140,47 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
             }
         });
 
-        let mut recents = Vec::new();
-        for section in &sections[..10.min(sections.len())] {
-            let parent_entry = section.parent_entry(&index);
-            let in_entry = parent_entry
-                .section_ids()
-                .iter()
-                .position(|s| s == section.id())
-                .unwrap();
-            let following = (in_entry > 0).then(|| {
-                let previous_section = parent_entry.section_ids()[in_entry - 1];
-                let previous_description = index
-                    .section(previous_section)
-                    .unwrap()
-                    .description()
-                    .to_owned();
-                (previous_section, previous_description)
-            });
-            let read = history.iter().any(|h| h.section_id() == *section.id());
-            let parent_volume = parent_entry.parent_volume(&index);
-            let parent_volume = (
-                parent_volume.title().to_owned(),
-                parent_entry.parent_volume_index(),
-                parent_volume.volume_count(),
-            );
+        // Process the 10 latest sections...
+        let recents = sections[..10.min(sections.len())]
+            .iter()
+            .map(|section| {
+                let parent_entry = index.entry(section.parent_entry_id()).unwrap();
+                let in_entry = parent_entry
+                    .section_ids()
+                    .iter()
+                    .position(|s| s == section.id())
+                    .unwrap();
+                let previous = (in_entry > 0).then(|| {
+                    let previous_section = parent_entry.section_ids()[in_entry - 1];
+                    let previous_description = index
+                        .section(previous_section)
+                        .unwrap()
+                        .description()
+                        .to_owned();
+                    (previous_section, previous_description)
+                });
+                let read = history.iter().any(|h| h.section_id() == *section.id());
+                let parent_volume = index.volume(parent_entry.parent_volume_id()).unwrap();
+                let parent_volume = (
+                    parent_volume.title().to_owned(),
+                    parent_entry.parent_volume_index(),
+                    parent_volume.volume_count(),
+                );
 
-            recents.push(html::home::RecentSection {
-                id: *section.id(),
-                parent_volume,
-                parent_entry: parent_entry.title().to_owned(),
-                in_entry: (in_entry + 1, parent_entry.section_ids().len()),
-                date: data::date_naive(&section.date()),
-                previous: following,
-                description: section.description().to_owned(),
-                summary: section.summary().to_owned(),
-                length: section.length_str(),
-                read,
-            });
-        }
+                html::home::RecentSection {
+                    id: *section.id(),
+                    parent_volume,
+                    parent_entry: parent_entry.title().to_owned(),
+                    in_entry: (in_entry + 1, parent_entry.section_ids().len()),
+                    date: data::date_naive(&section.date()),
+                    previous,
+                    description: section.description().to_owned(),
+                    summary: section.summary().to_owned(),
+                    length: section.length_str(),
+                    read,
+                }
+            })
+            .collect();
         let expand = user.preferences().get("expand_recents");
         let expand = match expand {
             Some(expand) => expand == "true",
@@ -284,7 +299,7 @@ mod cmd {
         },
         SetNewSection {
             id: u32,
-            position: Position<String, u32>,
+            position: data::Position<String, u32>,
             heading: String,
             description: String,
             summary: String,
@@ -294,7 +309,7 @@ mod cmd {
         },
         MoveSection {
             id: u32,
-            position: Position<String, u32>,
+            position: data::Position<String, u32>,
         },
         SectionStatus {
             id: String,
@@ -315,7 +330,7 @@ mod cmd {
         SetNewEntry {
             id: String,
             title: String,
-            position: Position<(String, usize), String>,
+            position: data::Position<(String, usize), String>,
             description: String,
             summary: String,
         },
@@ -324,7 +339,7 @@ mod cmd {
         },
         MoveEntry {
             id: String,
-            position: Position<(String, usize), String>,
+            position: data::Position<(String, usize), String>,
         },
         GetVolume {
             id: String,
@@ -339,7 +354,7 @@ mod cmd {
         },
         SetNewVolume {
             id: String,
-            position: Position<(), String>,
+            position: data::Position<(), String>,
             title: String,
             subtitle: String,
         },
@@ -348,7 +363,7 @@ mod cmd {
         },
         MoveVolume {
             id: String,
-            position: Position<(), String>,
+            position: data::Position<(), String>,
         },
         VolumeContentType {
             id: String,
@@ -380,32 +395,29 @@ mod cmd {
             id: String,
             code: String,
         },
-    }
-
-    #[derive(Deserialize)]
-    pub enum Position<C, I> {
-        StartOf(C),
-        Before(I),
-        After(I),
-        EndOf(C),
+        Volumes,
     }
 }
 
 pub async fn cmd(
-    headers: HeaderMap,
     State(state): State<AppState>,
     Json(body): Json<cmd::Body>,
 ) -> Result<maud::Markup, maud::Markup> {
     use html::terminal;
-    let index = state.index.lock().unwrap();
+    let mut index = state.index.lock().unwrap();
 
-    let get_user = |id| index.user(id).ok_or(terminal::error("user", id));
-    let get_volume = |id| index.volume(id).ok_or(terminal::error("volume", id));
-    let get_entry = |id| index.entry(id).ok_or(terminal::error("entry", id));
-    let get_section = |id| index.section(id).ok_or(terminal::error("section", id));
+    fn or_terminal_error<T>(
+        option: Option<T>,
+        category: &str,
+        id: impl Display,
+    ) -> Result<T, maud::Markup> {
+        option.ok_or_else(|| html::terminal::error(category, id))
+    }
 
-    let user_info = |user: &dyn AnyWrapper<data::User>| {
+    fn user_info(index: &data::Index, user: data::UserWrapper) -> terminal::UserInfo {
         let codes = user.codes().join(" ");
+
+        // Transform the list of read sections into a list of read entries (and their date).
         let mut history: Vec<(String, DateTime<Utc>)> = Vec::new();
         if let Some(user_history) = user.history() {
             for user_history_entry in user_history {
@@ -420,13 +432,14 @@ pub async fn cmd(
                 }
             }
         }
-        let history = history
+        let mut history: Vec<_> = history
             .into_iter()
             .map(|h| terminal::UserHistoryEntry {
                 entry: h.0,
                 date: data::date(&h.1),
             })
             .collect();
+        history.sort_by(|a, b| b.date.cmp(&a.date));
         let preferences = user
             .preferences()
             .iter()
@@ -445,9 +458,9 @@ pub async fn cmd(
             privilege: format!("{:?}", user.privilege()),
             widgets,
         }
-    };
+    }
 
-    let volume_info = |volume: &dyn AnyWrapper<data::Volume>| {
+    fn volume_info(index: &data::Index, volume: data::VolumeWrapper) -> terminal::VolumeInfo {
         let entries = volume
             .entries(&index)
             .map(|e| terminal::VolumeEntry {
@@ -464,9 +477,9 @@ pub async fn cmd(
             entries,
             volume_count: volume.volume_count(),
         }
-    };
+    }
 
-    let entry_info = |entry: &dyn AnyWrapper<data::Entry>| {
+    fn entry_info(index: &data::Index, entry: data::EntryWrapper) -> terminal::EntryInfo {
         let sections = entry
             .sections(&index)
             .map(|s| terminal::EntrySection {
@@ -486,10 +499,10 @@ pub async fn cmd(
             ),
             sections,
         }
-    };
+    }
 
-    let section_info = |section: &dyn AnyWrapper<data::Section>| {
-        let parent_entry = section.parent_entry(&index);
+    fn section_info(index: &data::Index, section: data::SectionWrapper) -> terminal::SectionInfo {
+        let parent_entry = index.entry(section.parent_entry_id()).unwrap();
         let in_entry = parent_entry
             .section_ids()
             .iter()
@@ -523,44 +536,170 @@ pub async fn cmd(
             perspectives,
             comments,
         }
-    };
+    }
+
+    fn volumes(index: &data::Index) -> terminal::Volumes {
+        let volumes = index
+            .volumes()
+            .map(|v| (v.id().clone(), v.subtitle().unwrap_or("").to_owned()))
+            .collect();
+        terminal::Volumes(volumes)
+    }
 
     use cmd::Body as B;
     Ok(match body {
         B::AddUserCode { id, code } => {
-            let user = get_user(&id)?;
-            upgrade!(user, index);
-            user.add_code(code);
-            html::terminal::user(&user_info(&user))
+            // Change the user's codes.
+            {
+                let user = index.user_mut(&id);
+                let mut user = or_terminal_error(user, "user", &id)?;
+                user.add_code(code);
+            }
+
+            // Then send the changed data.
+            let user = index.user(&id).unwrap();
+            terminal::user(user_info(&index, user))
         }
         B::DeleteEntry { id } => {
-            let parent_volume = get_entry(&id)?.parent_volume_id();
+            // Dump entry data.
+            let entry = index.entry(&id);
+            let entry = or_terminal_error(entry, "entry", &id)?;
             let now = Utc::now().timestamp();
-            let dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
-            let data = File::open(format!("content/entries/{}.json", id)).unwrap();
+            let mut dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
+            let mut data = File::open(format!("content/entries/{}.json", id)).unwrap();
             let mut data_contents = String::new();
-            data.read_to_string(&mut data_contents);
-            dump.write_all(data_contents.as_bytes());
-            let parent_volume = get_volume(parent_volume)?;
+            data.read_to_string(&mut data_contents).unwrap();
+            dump.write_all(data_contents.as_bytes()).unwrap();
+
+            // Remove entry from index and parent volume.
+            let parent_volume_id = entry.parent_volume_id().to_owned();
             index.remove_entry(&id);
-            html::terminal::volume(&volume_info(&parent_volume))
+            let parent_volume = index.volume(&parent_volume_id);
+            let parent_volume = or_terminal_error(parent_volume, "volume", parent_volume_id)?;
+            terminal::volume(volume_info(&index, parent_volume))
         }
         B::DeleteSection { id } => {
-            let parent_entry = get_section(id)?.parent_entry_id();
+            // Dump section contents.
+            let section = index.section(id);
+            let section = or_terminal_error(section, "section", id)?;
             let now = Utc::now().timestamp();
-            let dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
-            let data = File::open(format!("content/sections/{}.json", id)).unwrap();
+            let mut dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
+            let mut data = File::open(format!("content/sections/{}.json", id)).unwrap();
             let mut data_contents = String::new();
-            data.read_to_string(&mut data_contents);
-            let contents = File::open(format!("content/sections/{}.txt", id)).unwrap();
-            let mut contents = String::new();
-            data.read_to_string(&mut contents);
-            dump.write_all(contents.as_bytes());
-            let parent_entry = get_entry(parent_entry)?;
-            index.remove_section(id);
-            html::terminal::entry(&entry_info(&parent_entry))
-        }
-    });
+            data.read_to_string(&mut data_contents).unwrap();
+            let mut text = File::open(format!("content/sections/{}.txt", id)).unwrap();
+            let mut text_contents = String::new();
+            text.read_to_string(&mut text_contents).unwrap();
+            dump.write_all(data_contents.as_bytes()).unwrap();
+            dump.write_all(text_contents.as_bytes()).unwrap();
 
-    Ok(maud::html!("temp"))
+            // Remove section from index and parent volume.
+            let parent_entry_id = section.parent_entry_id().to_owned();
+            index.remove_section(id);
+            let parent_entry = index.entry(&parent_entry_id);
+            let parent_entry = or_terminal_error(parent_entry, "entry", parent_entry_id)?;
+            terminal::entry(entry_info(&index, parent_entry))
+        }
+        B::DeleteUser { id } => {
+            // "Removing the user" just deletes their codes.
+            let user = index.user(&id);
+            or_terminal_error(user, "user", &id)?;
+            index.remove_user(&id);
+
+            // Then send the changed data.
+            let user = index.user(&id).unwrap();
+            terminal::user(user_info(&index, user))
+        }
+        B::DeleteVolume { id } => {
+            // Dump volume data.
+            let volume = index.volume(&id);
+            let volume = or_terminal_error(volume, "volume", &id)?;
+            let now = Utc::now().timestamp();
+            let mut dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
+            let mut data = File::open(format!("content/volumes/{}.json", id)).unwrap();
+            let mut data_contents = String::new();
+            data.read_to_string(&mut data_contents).unwrap();
+            dump.write_all(data_contents.as_bytes()).unwrap();
+
+            // Remove volume from index.
+            index.remove_volume(&id);
+            terminal::volumes(volumes(&index))
+        }
+        B::GetEntry { id } => {
+            let entry = index.entry(&id);
+            let entry = or_terminal_error(entry, "entry", &id)?;
+            terminal::entry(entry_info(&index, entry))
+        }
+        B::GetSection { id } => {
+            let section = index.section(id);
+            let section = or_terminal_error(section, "section", &id)?;
+            terminal::section(section_info(&index, section))
+        }
+        B::GetUser { id } => {
+            let user = index.user(&id);
+            let user = or_terminal_error(user, "user", &id)?;
+            terminal::user(user_info(&index, user))
+        }
+        B::GetVolume { id } => {
+            let volume = index.volume(&id);
+            let volume = or_terminal_error(volume, "volume", &id)?;
+            terminal::volume(volume_info(&index, volume))
+        }
+        B::MoveEntry { id, position } => todo!(),
+        B::MoveSection { id, position } => todo!(),
+        B::MoveVolume { id, position } => todo!(),
+        B::NewEntry { id } => todo!(),
+        B::NewSection { id } => todo!(),
+        B::NewUser {
+            first_name,
+            last_name,
+        } => todo!(),
+        B::NewVolume { id } => todo!(),
+        B::RemoveUserCode { id, code } => todo!(),
+        B::SectionStatus { id, status } => todo!(),
+        B::SetEntry {
+            id,
+            title,
+            description,
+            summary,
+        } => todo!(),
+        B::SetNewEntry {
+            id,
+            title,
+            position,
+            description,
+            summary,
+        } => todo!(),
+        B::SetNewSection {
+            id,
+            position,
+            heading,
+            description,
+            summary,
+        } => todo!(),
+        B::SetNewVolume {
+            id,
+            position,
+            title,
+            subtitle,
+        } => todo!(),
+        B::SetSection {
+            id,
+            heading,
+            description,
+            summary,
+        } => todo!(),
+        B::SetUser {
+            first_name,
+            last_name,
+        } => todo!(),
+        B::SetVolume {
+            id,
+            title,
+            subtitle,
+        } => todo!(),
+        B::UserPrivilege { id, privilege } => todo!(),
+        B::VolumeContentType { id, content_type } => todo!(),
+        B::Volumes => todo!(),
+    })
 }

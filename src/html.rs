@@ -423,13 +423,15 @@ pub mod terminal {
         pub contents: String,
     }
 
+    pub struct Volumes(pub Vec<(String, String)>);
+
     pub fn error(category: &str, id: impl Display) -> maud::Markup {
         html! {
             p.error { "Unknown " (category) " " (id) }
         }
     }
 
-    pub fn user(user: &UserInfo) -> maud::Markup {
+    pub fn user(user: UserInfo) -> maud::Markup {
         html! {
             p { b { "Name " (user.first_name) " " (user.last_name) } }
             p { "Privilege: " span.info { (user.privilege) } }
@@ -477,7 +479,7 @@ pub mod terminal {
         }
     }
 
-    pub fn volume(volume: &VolumeInfo) -> maud::Markup {
+    pub fn volume(volume: VolumeInfo) -> maud::Markup {
         html! {
             p { b { "Volume " (volume.id) } }
             p { "Volume count: " span.info { (volume.volume_count) } }
@@ -515,7 +517,22 @@ pub mod terminal {
         }
     }
 
-    pub fn entry(entry: &EntryInfo) -> maud::Markup {
+    pub fn volumes(volumes: Volumes) -> maud::Markup {
+        html! {
+            p { "Volumes:" }
+            ul {
+                @for volume in volumes.0 {
+                    li {
+                        (volume.0)
+                        " - "
+                        (volume.1)
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn entry(entry: EntryInfo) -> maud::Markup {
         html! {
             p { b { "Entry " (entry.id) } }
             p {
@@ -558,7 +575,7 @@ pub mod terminal {
         }
     }
 
-    pub fn section(section: &SectionInfo) -> maud::Markup {
+    pub fn section(section: SectionInfo) -> maud::Markup {
         html! {
             p { b { "Section " (section.id) } }
             p { "Parent entry: " span.info { (section.parent_entry) } }
