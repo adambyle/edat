@@ -332,13 +332,17 @@ pub fn home(headers: &HeaderMap, widgets: Vec<Box<dyn home::Widget>>) -> maud::M
 pub fn terminal(headers: &HeaderMap, allowed: bool) -> maud::Markup {
     let body = if allowed {
         html! {
-            p { b { "Terminal" } }
+            h1 { b { "Command terminal" } }
             input #command type="text"
                 placeholder="Enter command here"
                 autocomplete="off"
                 autocapitalize="off"
                 spellcheck="false"
                 autofocus {}
+            p #invalid-command style="opacity: 0.0" { "Invalid command" }
+            #response {
+
+            }
         }
     } else {
         html! {
@@ -351,7 +355,10 @@ pub fn terminal(headers: &HeaderMap, allowed: bool) -> maud::Markup {
 pub mod terminal {
     use std::fmt::Display;
 
-    use maud::html;
+    use chrono::Utc;
+    use maud::{html, PreEscaped};
+
+    use crate::data;
 
     pub struct UserInfo {
         pub first_name: String,
@@ -431,6 +438,12 @@ pub mod terminal {
         }
     }
 
+    pub fn bad_date(date: &str) -> maud::Markup {
+        html! {
+            p.error { "Invalid date " (date) }
+        }
+    }
+
     pub fn unauthorized() -> maud::Markup {
         html! {
             p.error { "Not authorized" }
@@ -440,14 +453,14 @@ pub mod terminal {
     pub fn user(user: UserInfo) -> maud::Markup {
         html! {
             p { b { "Name " (user.first_name) " " (user.last_name) } }
-            p { "Privilege: " span.info { (user.privilege) } }
-            p { "Codes: " span.info { (user.codes) } }
-            p { "Widgets: " span.info { (user.widgets) } }
+            p { "Privilege: " mono.info { (user.privilege) } }
+            p { "Codes: " mono.info { (user.codes) } }
+            p { "Widgets: " mono.info { (user.widgets) } }
             p { "History:" }
             ul {
                 @for user in &user.history {
                     li {
-                        (user.entry)
+                        mono { (user.entry) }
                         " read "
                         (user.date)
                     }
@@ -457,9 +470,9 @@ pub mod terminal {
             ul {
                 @for setting in &user.preferences {
                     li {
-                        (setting.setting)
+                        mono { (setting.setting) }
                         ": "
-                        (setting.switch)
+                        mono { (setting.switch) }
                     }
                 }
             }
@@ -478,25 +491,25 @@ pub mod terminal {
         };
         html! {
             label { "First name" }
-            input #user-first-name maxlength="30" { (first_name) }
+            input #user-first-name maxlength="30" value=(first_name);
             label { "Last name" }
-            textarea #user-last-name maxlength = "150" { (last_name) }
+            input #user-last-name maxlength = "30" value=(last_name);
             button #submit { "Submit" }
         }
     }
 
     pub fn volume(volume: VolumeInfo) -> maud::Markup {
         html! {
-            p { b { "Volume " (volume.id) } }
+            p { b { "Volume " mono { (volume.id) } } }
             p { "Volume count: " span.info { (volume.volume_count) } }
-            p { "Content type: " span.info { (volume.content_type) } }
-            p { "Owner: " span.info { (volume.owner) } }
+            p { "Content type: " mono.info { (volume.content_type) } }
+            p { "Owner: " mono.info { (volume.owner) } }
             p { "Entries:" }
             ul {
                 @for entry in &volume.entries {
                     li {
-                        (entry.id)
-                        " - "
+                        mono { (entry.id) }
+                        " — "
                         (entry.description)
                     }
                 }
@@ -508,17 +521,15 @@ pub mod terminal {
     pub fn edit_volume(volume: Option<&VolumeInfo>) -> maud::Markup {
         let (title, subtitle) = match volume {
             Some(VolumeInfo {
-                title,
-                subtitle,
-                ..
+                title, subtitle, ..
             }) => (title.as_ref(), subtitle.as_ref()),
             None => ("", ""),
         };
         html! {
             label { "Title" }
-            input #volume-title maxlength="30" { (title) }
+            input #volume-title maxlength="30" value=(PreEscaped(title));
             label { "Subtitle" }
-            textarea #volume-subtitle maxlength = "150" { (subtitle) }
+            textarea #volume-subtitle maxlength = "150" { (PreEscaped(subtitle)) }
             button #submit { "Submit" }
         }
     }
@@ -529,9 +540,9 @@ pub mod terminal {
             ul {
                 @for volume in volumes.0 {
                     li {
-                        (volume.0)
-                        " - "
-                        (volume.1)
+                        mono { (PreEscaped(volume.0)) }
+                        " — "
+                        (PreEscaped(volume.1))
                     }
                 }
             }
@@ -540,19 +551,19 @@ pub mod terminal {
 
     pub fn entry(entry: EntryInfo) -> maud::Markup {
         html! {
-            p { b { "Entry " (entry.id) } }
+            p { b { "Entry " mono { (entry.id) } } }
             p {
                 "Parent volume: "
-                span.info { (entry.parent_volume.0) (entry.parent_volume.1) }
+                span.info { mono { (entry.parent_volume.0) } " " (entry.parent_volume.1) }
             }
-            p { "Author: " span.info { (entry.author) } }
+            p { "Author: " mono.info { (entry.author) } }
             p { "Sections:" }
             ul {
                 @for section in &entry.sections {
                     li {
-                        (section.id)
-                        " - "
-                        (section.description)
+                        mono { (section.id) }
+                        " — "
+                        (PreEscaped(&section.description))
                     }
                 }
             }
@@ -572,19 +583,19 @@ pub mod terminal {
         };
         html! {
             label { "Title" }
-            input #entry-title maxlength="30" { (title) }
+            input #entry-title maxlength="30" value=(PreEscaped(title));
             label { "Description" }
-            textarea #entry-description maxlength = "75" { (description) }
+            textarea #entry-description maxlength = "75" { (PreEscaped(description)) }
             label { "Summary" }
-            textarea #entry-summary maxlength = "150" { (summary) }
+            textarea #entry-summary maxlength = "150" { (PreEscaped(summary)) }
             button #submit { "Submit" }
         }
     }
 
     pub fn section(section: SectionInfo) -> maud::Markup {
         html! {
-            p { b { "Section " (section.id) } }
-            p { "Parent entry: " span.info { (section.parent_entry) } }
+            p { b { "Section " mono { (section.id) } } }
+            p { "Parent entry: " mono.info { (section.parent_entry) } }
             p {
                 "In entry: " span.info {
                     (section.in_entry.0 + 1)
@@ -592,20 +603,19 @@ pub mod terminal {
                     (section.in_entry.1)
                 }
             }
-            p { "Status: " span.info { (section.status) } }
-            p { "Added: " span.info { (section.date) } }
+            p { "Status: " mono.info { (section.status) } }
             p { "Length: " span.info { (section.length) } }
             (edit_section(Some(&section)))
-            p { "Perspectives: " span.info { (section.perspectives) }}
+            p { "Perspectives: " mono.info { (section.perspectives) }}
             p { "Comments: " }
             ul {
                 @for comment in &section.comments {
                     li {
-                       (comment.author)
+                       mono { (comment.author) }
                        " on "
                        (comment.timestamp)
-                       " - "
-                       (comment.contents)
+                       " — "
+                       (PreEscaped(&comment.contents))
                     }
                 }
             }
@@ -613,22 +623,26 @@ pub mod terminal {
     }
 
     pub fn edit_section(section: Option<&SectionInfo>) -> maud::Markup {
-        let (heading, description, summary) = match section {
+        let now = data::date(&Utc::now());
+        let (heading, description, summary, date) = match section {
             Some(SectionInfo {
                 heading,
                 description,
                 summary,
+                date,
                 ..
-            }) => (heading.as_ref(), description.as_ref(), summary.as_ref()),
-            None => ("", "", ""),
+            }) => (heading.as_ref(), description.as_ref(), summary.as_ref(), date.to_owned()),
+            None => ("", "", "", Utc::now().format("%Y-%m-%d").to_string()),
         };
         html! {
             label { "Heading" }
-            input #section-heading maxlength="30" { (heading) }
+            input #section-heading maxlength="30" value=(PreEscaped(heading));
             label { "Description" }
-            textarea #section-description maxlength = "75" { (description) }
+            textarea #section-description maxlength="75" { (PreEscaped(description)) }
             label { "Summary" }
-            textarea #section-summary maxlength = "150" { (summary) }
+            textarea #section-summary maxlength="150" { (PreEscaped(summary)) }
+            label { "Added" }
+            input #section-date value=(date);
             button #submit { "Submit" }
         }
     }

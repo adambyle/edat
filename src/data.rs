@@ -1,7 +1,12 @@
-use std::{collections::HashMap, fs::File, ops::Deref};
+use std::{
+    collections::HashMap,
+    fs::{remove_file, File},
+    ops::Deref,
+};
 
-use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, Utc};
 use indexmap::IndexMap;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -103,6 +108,10 @@ impl Index {
         .unwrap();
     }
 
+    pub fn next_section_id(&self) -> u32 {
+        self.next_section_id
+    }
+
     pub fn users(&self) -> impl Iterator<Item = UserWrapper> {
         self.users
             .iter()
@@ -137,17 +146,33 @@ impl Index {
         first_name: String,
         last_name: String,
     ) -> Option<String> {
+        let _ = remove_file(format!("users/{id}.json")).unwrap();
+
         let mut user = self.users.remove(id)?;
         let new_id = format!("{}{}", &first_name, &last_name);
         user.first_name = first_name;
         user.last_name = last_name;
         self.users.insert(new_id.clone(), user);
+
+        for (_, volume) in &mut self.volumes {
+            if volume.owner == id {
+                volume.owner = new_id.clone();
+            }
+        }
+
+        for (_, entry) in &mut self.entries {
+            if entry.author == id {
+                entry.author = new_id.clone();
+            }
+        }
+
         Some(new_id)
     }
 
     pub fn new_user(&mut self, first_name: String, last_name: String) {
+        let id = format!("{}{}", first_name.to_lowercase(), last_name.to_lowercase());
         self.users.insert(
-            format!("{}{}", first_name.to_lowercase(), last_name.to_lowercase()),
+            id.clone(),
             User {
                 first_name,
                 last_name,
@@ -158,6 +183,9 @@ impl Index {
                 preferences: HashMap::new(),
             },
         );
+
+        // Force a save.
+        drop(self.user_mut(&id));
     }
 
     pub fn volumes(&self) -> impl Iterator<Item = VolumeWrapper> {
@@ -189,14 +217,15 @@ impl Index {
 
     pub fn new_volume(
         &mut self,
-        id: String,
         title: String,
         subtitle: Option<String>,
         owner: String,
         position: Position<(), String>,
-    ) -> Result<(), InvalidReference> {
+    ) -> Result<String, InvalidReference> {
+        let id = create_id(&title);
+        let subtitle = subtitle.map(|s| process_text(&s));
         let volume = Volume {
-            title,
+            title: process_text(&title),
             subtitle,
             owner,
             content_type: ContentType::Journal,
@@ -204,7 +233,8 @@ impl Index {
             entries: Vec::new(),
         };
 
-        self.insert_volume(id, volume, position)
+        self.insert_volume(id.clone(), volume, position)?;
+        Ok(id)
     }
 
     pub fn move_volume(
@@ -241,7 +271,11 @@ impl Index {
                 .position(|v| v == &reference)
                 .ok_or(InvalidReference::Volume(reference))?,
         };
-        self.volumes.shift_insert(index, id, volume);
+        self.volumes.shift_insert(index, id.clone(), volume);
+
+        // Force a save.
+        drop(self.volume_mut(&id));
+
         Ok(())
     }
 
@@ -250,6 +284,8 @@ impl Index {
         id: &str,
         new_title: String,
     ) -> Result<String, InvalidReference> {
+        let _ = remove_file(format!("content/volumes/{id}.json")).unwrap();
+
         // Rename and re-id volume.
         let index = self
             .volumes
@@ -258,7 +294,7 @@ impl Index {
             .ok_or(InvalidReference::Volume(id.to_owned()))?;
         let mut volume = self.volumes.shift_remove_index(index).unwrap().1;
         let new_id = create_id(&new_title);
-        volume.title = new_title;
+        volume.title = process_text(&new_title);
 
         // Update child entries.
         for entry in &volume.entries {
@@ -267,6 +303,7 @@ impl Index {
         }
 
         self.volumes.shift_insert(index, new_id.clone(), volume);
+        self.save();
         Ok(new_id)
     }
 
@@ -320,24 +357,25 @@ impl Index {
 
     pub fn new_entry(
         &mut self,
-        id: String,
         title: String,
         description: String,
         summary: String,
         author: String,
         position: Position<(String, usize), String>,
-    ) -> Result<(), InvalidReference> {
+    ) -> Result<String, InvalidReference> {
+        let id = create_id(&title);
         let entry = Entry {
-            title,
+            title: process_text(&title),
             old_ids: Vec::new(),
             parent_volume: ("".to_owned(), 0),
             author,
-            description,
-            summary,
+            description: process_text(&description),
+            summary: process_text(&summary),
             sections: Vec::new(),
         };
 
-        self.insert_entry(id, entry, position)
+        self.insert_entry(id.clone(), entry, position)?;
+        Ok(id)
     }
 
     pub fn move_entry(
@@ -360,14 +398,20 @@ impl Index {
         self.insert_entry(id.to_owned(), entry, position)
     }
 
-    pub fn set_entry_title(&mut self, id: &str, new_title: String) -> Result<String, InvalidReference> {
+    pub fn set_entry_title(
+        &mut self,
+        id: &str,
+        new_title: String,
+    ) -> Result<String, InvalidReference> {
+        let _ = remove_file(format!("content/entries/{id}.json"));
+
         // Rename and re-id entry.
         let mut entry = self
             .entries
             .remove(id)
             .ok_or(InvalidReference::Entry(id.to_owned()))?;
         let new_id = create_id(&new_title);
-        entry.title = new_title;
+        entry.title = process_text(&new_title);
 
         // Update child entries.
         for &section in &entry.sections {
@@ -425,7 +469,12 @@ impl Index {
             volume.volume_count = volume.volume_count.max(volume_part + 1);
             volume.entries.insert(index, id.clone());
         }
-        self.entries.insert(id, entry);
+
+        self.entries.insert(id.clone(), entry);
+
+        // Force a save.
+        drop(self.entry_mut(&id));
+
         Ok(())
     }
 
@@ -466,23 +515,27 @@ impl Index {
         heading: Option<String>,
         description: String,
         summary: String,
+        date: NaiveDate,
         position: Position<String, u32>,
     ) -> Result<u32, InvalidReference> {
         let id = self.next_section_id;
+        let heading = heading.map(|s| process_text(&s));
         self.next_section_id += 1;
         let section = Section {
-            description,
-            summary,
+            description: process_text(&description),
+            summary: process_text(&summary),
             heading,
             parent_entry: "".to_owned(),
             status: ContentStatus::Missing,
-            date: "".to_owned(),
+            date: date.format("%Y-%m-%d").to_string(),
             comments: Vec::new(),
             perspectives: Vec::new(),
             length: 0,
         };
 
         self.insert_section(id, section, position)?;
+        File::create(format!("content/sections/{id}.txt")).unwrap();
+        self.save();
         Ok(id)
     }
 
@@ -550,6 +603,10 @@ impl Index {
             entry.sections.insert(index, id);
         }
         self.sections.insert(id, section);
+
+        // Force a save.
+        drop(self.section_mut(id));
+
         Ok(())
     }
 }
@@ -758,7 +815,7 @@ impl Volume {
     }
 
     pub fn set_subtitle(&mut self, subtitle: Option<String>) {
-        self.subtitle = subtitle;
+        self.subtitle = subtitle.map(|s| process_text(&s));
     }
 
     pub fn owner_id(&self) -> &str {
@@ -837,7 +894,7 @@ impl Entry {
     }
 
     pub fn set_description(&mut self, description: String) {
-        self.description = description;
+        self.description = process_text(&description);
     }
 
     pub fn summary(&self) -> &str {
@@ -845,7 +902,7 @@ impl Entry {
     }
 
     pub fn set_summary(&mut self, summary: String) {
-        self.summary = summary;
+        self.summary = process_text(&summary);
     }
 
     pub fn section_ids(&self) -> &[u32] {
@@ -888,7 +945,7 @@ impl Section {
     }
 
     pub fn set_heading(&mut self, heading: Option<String>) {
-        self.heading = heading;
+        self.heading = heading.map(|h| process_text(&h));
     }
 
     pub fn parent_entry_id(&self) -> &str {
@@ -903,8 +960,16 @@ impl Section {
         self.status = status;
     }
 
+    pub fn raw_date(&self) -> &str {
+        &self.date
+    }
+
     pub fn date(&self) -> NaiveDate {
         NaiveDate::parse_from_str(&self.date, "%Y-%m-%d").unwrap()
+    }
+
+    pub fn set_date(&mut self, date: NaiveDate) {
+        self.date = date.format("%Y-%m-%d").to_string();
     }
 
     pub fn description(&self) -> &str {
@@ -912,7 +977,7 @@ impl Section {
     }
 
     pub fn set_description(&mut self, description: String) {
-        self.description = description;
+        self.description = process_text(&description);
     }
 
     pub fn summary(&self) -> &str {
@@ -920,7 +985,7 @@ impl Section {
     }
 
     pub fn set_summary(&mut self, summary: String) {
-        self.summary = summary;
+        self.summary = process_text(&summary);
     }
 
     pub fn comments(&self) -> &[Comment] {
@@ -1083,9 +1148,33 @@ pub fn roman_numeral(number: usize) -> &'static str {
 
 pub fn create_id(name: &str) -> String {
     let name: String = name
+        .replace("<i>", "")
+        .replace("&", "and")
+        .replace("</i>", "")
         .to_lowercase()
         .chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == ' ')
         .collect();
     name.replace(' ', "-")
+}
+
+fn process_text(text: &str) -> String {
+    let text = text
+        .replace("--", "—")
+        .replace("-.", "–")
+        .replace("...", "…");
+
+    let open_quote = Regex::new(r#""\S"#).unwrap();
+    let text = open_quote.replace_all(&text, "“");
+
+    let quote = Regex::new(r#"""#).unwrap();
+    let text = quote.replace_all(&text, "”");
+
+    let open_single = Regex::new(r#"(\s')|(^')|(["“”]')"#).unwrap();
+    let text = open_single.replace_all(&text, "‘");
+
+    let quote = Regex::new(r#"'"#).unwrap();
+    let text = quote.replace_all(&text, "’");
+
+    text.into_owned()
 }

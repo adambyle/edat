@@ -4,14 +4,37 @@ body {
     padding: 24px;
 }
 
-p, input, label, li, button {
+h1 {
     color: var(--content);
-    font: 14px var(--mono);
+    font: 18px var(--sans);
+    margin-bottom: 12px;
+}
+
+mono {
+    font-family: var(--mono);
+    display: inline;
+}
+
+input, button {
+    color: var(--content);
+    font: 14px var(--sans);
+    text-align: left;
+}
+
+p, li, textarea {
+    color: var(--content);
+    font: 11px var(--sans);
+    text-align: left;
+}
+
+label {
+    color: var(--gray);
+    font: 11px var(--sans);
+    margin-bottom: 6px;
     text-align: left;
 }
 
 input, textarea, button {
-    border: 1px solid var(--content);
     padding: 6px 12px;
     width: 100%;
     background: var(--bg);
@@ -19,6 +42,19 @@ input, textarea, button {
     &::placeholder {
         color: var(--gray);
     }
+}
+
+button {
+    border: 1px solid var(--content);
+}
+
+input, textarea {
+    border: 1px solid var(--gray);
+}
+
+ul {
+    margin-left: 12px;
+    margin-bottom: 12px;
 }
 
 p, input, textarea, button {
@@ -34,7 +70,13 @@ label, input, textarea {
 }
 
 #command {
+    margin-bottom: 6px;
+    font-family: var(--mono);
+}
+
+#invalid-command {
     margin-bottom: 24px;
+    color: red;
 }
 
 #forbidden {

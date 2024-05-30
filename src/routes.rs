@@ -5,9 +5,9 @@ use std::{fs::File, path::Path};
 
 use axum::extract::{Path as ReqPath, State};
 use axum::http::{header, HeaderMap, StatusCode};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::Deserialize;
 
 use crate::html::home::Widget;
@@ -294,12 +294,14 @@ mod cmd {
             heading: String,
             description: String,
             summary: String,
+            date: String,
         },
         SetNewSection {
             position: data::Position<String, u32>,
             heading: String,
             description: String,
             summary: String,
+            date: String,
         },
         DeleteSection {
             id: u32,
@@ -389,6 +391,7 @@ mod cmd {
             code: String,
         },
         Volumes,
+        NextSectionId,
     }
 }
 
@@ -396,7 +399,7 @@ pub async fn cmd(
     headers: HeaderMap,
     State(state): State<AppState>,
     Json(body): Json<cmd::Body>,
-) -> Result<maud::Markup, maud::Markup> {
+) -> Result<Response, maud::Markup> {
     use html::terminal;
     let mut index = state.index.lock().unwrap();
 
@@ -410,9 +413,7 @@ pub async fn cmd(
         option.ok_or_else(|| html::terminal::error(category, id))
     }
 
-    fn validate<T>(
-        position_result: Result<T, data::InvalidReference>,
-    ) -> Result<T, maud::Markup> {
+    fn validate<T>(position_result: Result<T, data::InvalidReference>) -> Result<T, maud::Markup> {
         use data::InvalidReference as I;
         position_result.map_err(|err| match err {
             I::Section(id) => html::terminal::error("section", id),
@@ -535,7 +536,7 @@ pub async fn cmd(
             heading: section.heading().unwrap_or("").to_owned(),
             description: section.description().to_owned(),
             summary: section.summary().to_owned(),
-            date: data::date_naive(&section.date()),
+            date: section.raw_date().to_owned(),
             parent_entry: section.parent_entry_id().to_owned(),
             in_entry: (in_entry, parent_entry.section_ids().len()),
             length: section.length(),
@@ -560,7 +561,7 @@ pub async fn cmd(
             {
                 let user = index.user_mut(&id);
                 let mut user = or_terminal_error(user, "user", &id)?;
-                user.add_code(code);
+                user.add_code(code.to_lowercase());
             }
 
             // Then send the changed data.
@@ -667,6 +668,7 @@ pub async fn cmd(
             let volume = index.volume(&id).unwrap();
             terminal::volume(volume_info(&index, volume))
         }
+        B::NextSectionId => return Ok(Json(index.next_section_id()).into_response()),
         B::NewEntry => terminal::edit_entry(None),
         B::NewSection => terminal::edit_section(None),
         B::NewUser => terminal::edit_user(None),
@@ -675,7 +677,7 @@ pub async fn cmd(
             {
                 let user = index.user_mut(&id);
                 let mut user = or_terminal_error(user, "user", &id)?;
-                user.remove_code(&code);
+                user.remove_code(&code.to_lowercase());
             }
             let user = index.user(&id).unwrap();
             terminal::user(user_info(&index, user))
@@ -711,15 +713,8 @@ pub async fn cmd(
             description,
             summary,
         } => {
-            let id = data::create_id(&title);
-            validate(index.new_entry(
-                id.clone(),
-                title,
-                description,
-                summary,
-                user.to_owned(),
-                position,
-            ))?;
+            let id =
+                validate(index.new_entry(title, description, summary, user.to_owned(), position))?;
             let entry = index.entry(&id).unwrap();
             terminal::entry(entry_info(&index, entry))
         }
@@ -728,14 +723,11 @@ pub async fn cmd(
             heading,
             description,
             summary,
+            date,
         } => {
+            let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|_| terminal::bad_date(&date))?;
             let heading = if heading == "" { None } else { Some(heading) };
-            let id = validate(index.new_section(
-                heading,
-                description,
-                summary,
-                position,
-            ))?;
+            let id = validate(index.new_section(heading, description, summary, date, position))?;
             let section = index.section(id).unwrap();
             terminal::section(section_info(&index, section))
         }
@@ -753,15 +745,8 @@ pub async fn cmd(
             title,
             subtitle,
         } => {
-            let id = data::create_id(&title);
             let subtitle = if subtitle == "" { None } else { Some(subtitle) };
-            validate(index.new_volume(
-                id.clone(),
-                title,
-                subtitle,
-                user.to_owned(),
-                position,
-            ))?;
+            let id = validate(index.new_volume(title, subtitle, user.to_owned(), position))?;
             let volume = index.volume(&id).unwrap();
             terminal::volume(volume_info(&index, volume))
         }
@@ -770,6 +755,7 @@ pub async fn cmd(
             heading,
             description,
             summary,
+            date,
         } => {
             {
                 let heading = if heading == "" { None } else { Some(heading) };
@@ -778,6 +764,9 @@ pub async fn cmd(
                 section.set_heading(heading);
                 section.set_description(description);
                 section.set_summary(summary);
+                let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|_| terminal::bad_date(&date))?;
+                section.set_date(date);
+                
             }
             let section = index.section(id).unwrap();
             terminal::section(section_info(&index, section))
@@ -797,7 +786,7 @@ pub async fn cmd(
             title,
             subtitle,
         } => {
-            validate(index.set_volume_title(&id, title))?;
+            let id = validate(index.set_volume_title(&id, title))?;
             let subtitle = if subtitle == "" { None } else { Some(subtitle) };
             {
                 let volume = index.volume_mut(&id);
@@ -825,6 +814,14 @@ pub async fn cmd(
             let volume = index.volume(&id).unwrap();
             terminal::volume(volume_info(&index, volume))
         }
-        B::Volumes => todo!(),
-    })
+        B::Volumes => {
+            let volumes = index
+                .volumes()
+                .map(|v| (v.id().to_owned(), v.subtitle().unwrap_or("").to_owned()))
+                .collect();
+            let volumes = terminal::Volumes(volumes);
+            terminal::volumes(volumes)
+        }
+    }
+    .into_response())
 }
