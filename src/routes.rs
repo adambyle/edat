@@ -288,9 +288,7 @@ mod cmd {
         GetSection {
             id: u32,
         },
-        NewSection {
-            id: u32,
-        },
+        NewSection,
         SetSection {
             id: u32,
             heading: String,
@@ -298,7 +296,6 @@ mod cmd {
             summary: String,
         },
         SetNewSection {
-            id: u32,
             position: data::Position<String, u32>,
             heading: String,
             description: String,
@@ -312,15 +309,13 @@ mod cmd {
             position: data::Position<String, u32>,
         },
         SectionStatus {
-            id: String,
+            id: u32,
             status: data::ContentStatus,
         },
         GetEntry {
             id: String,
         },
-        NewEntry {
-            id: String,
-        },
+        NewEntry,
         SetEntry {
             id: String,
             title: String,
@@ -328,7 +323,6 @@ mod cmd {
             summary: String,
         },
         SetNewEntry {
-            id: String,
             title: String,
             position: data::Position<(String, usize), String>,
             description: String,
@@ -344,16 +338,13 @@ mod cmd {
         GetVolume {
             id: String,
         },
-        NewVolume {
-            id: String,
-        },
+        NewVolume,
         SetVolume {
             id: String,
             title: String,
             subtitle: String,
         },
         SetNewVolume {
-            id: String,
             position: data::Position<(), String>,
             title: String,
             subtitle: String,
@@ -373,13 +364,15 @@ mod cmd {
             id: String,
         },
         SetUser {
+            id: String,
             first_name: String,
             last_name: String,
         },
-        NewUser {
+        SetNewUser {
             first_name: String,
             last_name: String,
         },
+        NewUser,
         DeleteUser {
             id: String,
         },
@@ -400,11 +393,14 @@ mod cmd {
 }
 
 pub async fn cmd(
+    headers: HeaderMap,
     State(state): State<AppState>,
     Json(body): Json<cmd::Body>,
 ) -> Result<maud::Markup, maud::Markup> {
     use html::terminal;
     let mut index = state.index.lock().unwrap();
+
+    let user = get_cookie(&headers, "edat_user").ok_or(html::terminal::unauthorized())?;
 
     fn or_terminal_error<T>(
         option: Option<T>,
@@ -412,6 +408,17 @@ pub async fn cmd(
         id: impl Display,
     ) -> Result<T, maud::Markup> {
         option.ok_or_else(|| html::terminal::error(category, id))
+    }
+
+    fn validate<T>(
+        position_result: Result<T, data::InvalidReference>,
+    ) -> Result<T, maud::Markup> {
+        use data::InvalidReference as I;
+        position_result.map_err(|err| match err {
+            I::Section(id) => html::terminal::error("section", id),
+            I::Entry(id) => html::terminal::error("entry", id),
+            I::Volume(id) => html::terminal::error("volume", id),
+        })
     }
 
     fn user_info(index: &data::Index, user: data::UserWrapper) -> terminal::UserInfo {
@@ -613,7 +620,7 @@ pub async fn cmd(
         B::DeleteVolume { id } => {
             // Dump volume data.
             let volume = index.volume(&id);
-            let volume = or_terminal_error(volume, "volume", &id)?;
+            or_terminal_error(volume, "volume", &id)?;
             let now = Utc::now().timestamp();
             let mut dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
             let mut data = File::open(format!("content/volumes/{}.json", id)).unwrap();
@@ -645,61 +652,179 @@ pub async fn cmd(
             let volume = or_terminal_error(volume, "volume", &id)?;
             terminal::volume(volume_info(&index, volume))
         }
-        B::MoveEntry { id, position } => todo!(),
-        B::MoveSection { id, position } => todo!(),
-        B::MoveVolume { id, position } => todo!(),
-        B::NewEntry { id } => todo!(),
-        B::NewSection { id } => todo!(),
-        B::NewUser {
-            first_name,
-            last_name,
-        } => todo!(),
-        B::NewVolume { id } => todo!(),
-        B::RemoveUserCode { id, code } => todo!(),
-        B::SectionStatus { id, status } => todo!(),
+        B::MoveEntry { id, position } => {
+            validate(index.move_entry(&id, position))?;
+            let entry = index.entry(&id).unwrap();
+            terminal::entry(entry_info(&index, entry))
+        }
+        B::MoveSection { id, position } => {
+            validate(index.move_section(id, position))?;
+            let section = index.section(id).unwrap();
+            terminal::section(section_info(&index, section))
+        }
+        B::MoveVolume { id, position } => {
+            validate(index.move_volume(&id, position))?;
+            let volume = index.volume(&id).unwrap();
+            terminal::volume(volume_info(&index, volume))
+        }
+        B::NewEntry => terminal::edit_entry(None),
+        B::NewSection => terminal::edit_section(None),
+        B::NewUser => terminal::edit_user(None),
+        B::NewVolume => terminal::edit_volume(None),
+        B::RemoveUserCode { id, code } => {
+            {
+                let user = index.user_mut(&id);
+                let mut user = or_terminal_error(user, "user", &id)?;
+                user.remove_code(&code);
+            }
+            let user = index.user(&id).unwrap();
+            terminal::user(user_info(&index, user))
+        }
+        B::SectionStatus { id, status } => {
+            {
+                let section = index.section_mut(id);
+                let mut section = or_terminal_error(section, "section", id)?;
+                section.set_status(status);
+            }
+            let section = index.section(id).unwrap();
+            terminal::section(section_info(&index, section))
+        }
         B::SetEntry {
             id,
             title,
             description,
             summary,
-        } => todo!(),
+        } => {
+            let id = validate(index.set_entry_title(&id, title))?;
+            {
+                let entry = index.entry_mut(&id);
+                let mut entry = or_terminal_error(entry, "entry", &id)?;
+                entry.set_description(description);
+                entry.set_summary(summary);
+            }
+            let entry = index.entry(&id).unwrap();
+            terminal::entry(entry_info(&index, entry))
+        }
         B::SetNewEntry {
-            id,
             title,
             position,
             description,
             summary,
-        } => todo!(),
+        } => {
+            let id = data::create_id(&title);
+            validate(index.new_entry(
+                id.clone(),
+                title,
+                description,
+                summary,
+                user.to_owned(),
+                position,
+            ))?;
+            let entry = index.entry(&id).unwrap();
+            terminal::entry(entry_info(&index, entry))
+        }
         B::SetNewSection {
-            id,
             position,
             heading,
             description,
             summary,
-        } => todo!(),
+        } => {
+            let heading = if heading == "" { None } else { Some(heading) };
+            let id = validate(index.new_section(
+                heading,
+                description,
+                summary,
+                position,
+            ))?;
+            let section = index.section(id).unwrap();
+            terminal::section(section_info(&index, section))
+        }
+        B::SetNewUser {
+            first_name,
+            last_name,
+        } => {
+            index.new_user(first_name.clone(), last_name.clone());
+            let user_id = format!("{}{}", first_name.to_lowercase(), last_name.to_lowercase());
+            let user = index.user(&user_id).unwrap();
+            terminal::user(user_info(&index, user))
+        }
         B::SetNewVolume {
-            id,
             position,
             title,
             subtitle,
-        } => todo!(),
+        } => {
+            let id = data::create_id(&title);
+            let subtitle = if subtitle == "" { None } else { Some(subtitle) };
+            validate(index.new_volume(
+                id.clone(),
+                title,
+                subtitle,
+                user.to_owned(),
+                position,
+            ))?;
+            let volume = index.volume(&id).unwrap();
+            terminal::volume(volume_info(&index, volume))
+        }
         B::SetSection {
             id,
             heading,
             description,
             summary,
-        } => todo!(),
+        } => {
+            {
+                let heading = if heading == "" { None } else { Some(heading) };
+                let section = index.section_mut(id);
+                let mut section = or_terminal_error(section, "section", &id)?;
+                section.set_heading(heading);
+                section.set_description(description);
+                section.set_summary(summary);
+            }
+            let section = index.section(id).unwrap();
+            terminal::section(section_info(&index, section))
+        }
         B::SetUser {
+            id,
             first_name,
             last_name,
-        } => todo!(),
+        } => {
+            let new_id = index.set_user_name(&id, first_name, last_name);
+            let new_id = or_terminal_error(new_id, "user", id)?;
+            let user = index.user(&new_id).unwrap();
+            terminal::user(user_info(&index, user))
+        }
         B::SetVolume {
             id,
             title,
             subtitle,
-        } => todo!(),
-        B::UserPrivilege { id, privilege } => todo!(),
-        B::VolumeContentType { id, content_type } => todo!(),
+        } => {
+            validate(index.set_volume_title(&id, title))?;
+            let subtitle = if subtitle == "" { None } else { Some(subtitle) };
+            {
+                let volume = index.volume_mut(&id);
+                let mut volume = or_terminal_error(volume, "volume", &id)?;
+                volume.set_subtitle(subtitle);
+            }
+            let volume = index.volume(&id).unwrap();
+            terminal::volume(volume_info(&index, volume))
+        }
+        B::UserPrivilege { id, privilege } => {
+            {
+                let user = index.user_mut(&id);
+                let mut user = or_terminal_error(user, "user", &id)?;
+                user.set_privilege(privilege);
+            }
+            let user = index.user(&id).unwrap();
+            terminal::user(user_info(&index, user))
+        }
+        B::VolumeContentType { id, content_type } => {
+            {
+                let volume = index.volume_mut(&id);
+                let mut volume = or_terminal_error(volume, "volume", &id)?;
+                volume.set_content_type(content_type);
+            }
+            let volume = index.volume(&id).unwrap();
+            terminal::volume(volume_info(&index, volume))
+        }
         B::Volumes => todo!(),
     })
 }

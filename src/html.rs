@@ -431,6 +431,12 @@ pub mod terminal {
         }
     }
 
+    pub fn unauthorized() -> maud::Markup {
+        html! {
+            p.error { "Not authorized" }
+        }
+    }
+
     pub fn user(user: UserInfo) -> maud::Markup {
         html! {
             p { b { "Name " (user.first_name) " " (user.last_name) } }

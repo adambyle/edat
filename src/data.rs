@@ -19,7 +19,7 @@ pub enum Position<C, I> {
 }
 
 #[derive(Debug)]
-pub enum InvalidPositionReference {
+pub enum InvalidReference {
     Volume(String),
     Entry(String),
     Section(u32),
@@ -113,11 +113,11 @@ impl Index {
         self.users.get(id).map(|u| Wrapper::new(u, id.to_owned()))
     }
 
-    pub fn users_mut(&mut self) -> impl Iterator<Item = UserWrapperMut> {
-        self.users
-            .iter_mut()
-            .map(|(k, u)| WrapperMut::new(u, k.to_owned()))
-    }
+    // pub fn users_mut(&mut self) -> impl Iterator<Item = UserWrapperMut> {
+    //     self.users
+    //         .iter_mut()
+    //         .map(|(k, u)| WrapperMut::new(u, k.to_owned()))
+    // }
 
     pub fn user_mut<'a>(&'a mut self, id: &str) -> Option<UserWrapperMut> {
         self.users
@@ -131,6 +131,35 @@ impl Index {
         }
     }
 
+    pub fn set_user_name(
+        &mut self,
+        id: &str,
+        first_name: String,
+        last_name: String,
+    ) -> Option<String> {
+        let mut user = self.users.remove(id)?;
+        let new_id = format!("{}{}", &first_name, &last_name);
+        user.first_name = first_name;
+        user.last_name = last_name;
+        self.users.insert(new_id.clone(), user);
+        Some(new_id)
+    }
+
+    pub fn new_user(&mut self, first_name: String, last_name: String) {
+        self.users.insert(
+            format!("{}{}", first_name.to_lowercase(), last_name.to_lowercase()),
+            User {
+                first_name,
+                last_name,
+                privilege: UserPrivilege::Reader,
+                codes: Vec::new(),
+                widgets: Vec::new(),
+                history: None,
+                preferences: HashMap::new(),
+            },
+        );
+    }
+
     pub fn volumes(&self) -> impl Iterator<Item = VolumeWrapper> {
         self.volumes
             .iter()
@@ -141,11 +170,11 @@ impl Index {
         self.volumes.get(id).map(|v| Wrapper::new(v, id.to_owned()))
     }
 
-    pub fn volumes_mut(&mut self) -> impl Iterator<Item = VolumeWrapperMut> {
-        self.volumes
-            .iter_mut()
-            .map(|(k, v)| WrapperMut::new(v, k.to_owned()))
-    }
+    // pub fn volumes_mut(&mut self) -> impl Iterator<Item = VolumeWrapperMut> {
+    //     self.volumes
+    //         .iter_mut()
+    //         .map(|(k, v)| WrapperMut::new(v, k.to_owned()))
+    // }
 
     pub fn volume_mut<'a>(&'a mut self, id: &str) -> Option<VolumeWrapperMut> {
         self.volumes
@@ -165,7 +194,7 @@ impl Index {
         subtitle: Option<String>,
         owner: String,
         position: Position<(), String>,
-    ) -> Result<(), InvalidPositionReference> {
+    ) -> Result<(), InvalidReference> {
         let volume = Volume {
             title,
             subtitle,
@@ -182,11 +211,11 @@ impl Index {
         &mut self,
         id: &str,
         position: Position<(), String>,
-    ) -> Result<(), InvalidPositionReference> {
+    ) -> Result<(), InvalidReference> {
         let volume = self
             .volumes
             .shift_remove(id)
-            .ok_or(InvalidPositionReference::Volume(id.to_owned()))?;
+            .ok_or(InvalidReference::Volume(id.to_owned()))?;
         self.insert_volume(id.to_owned(), volume, position)
     }
 
@@ -195,7 +224,7 @@ impl Index {
         id: String,
         volume: Volume,
         position: Position<(), String>,
-    ) -> Result<(), InvalidPositionReference> {
+    ) -> Result<(), InvalidReference> {
         let index = match position {
             Position::StartOf(_) => 0,
             Position::EndOf(_) => self.volumes.len(),
@@ -204,16 +233,41 @@ impl Index {
                     .volumes
                     .keys()
                     .position(|v| v == &reference)
-                    .ok_or(InvalidPositionReference::Volume(reference))?
+                    .ok_or(InvalidReference::Volume(reference))?
             }
             Position::Before(reference) => self
                 .volumes
                 .keys()
                 .position(|v| v == &reference)
-                .ok_or(InvalidPositionReference::Volume(reference))?,
+                .ok_or(InvalidReference::Volume(reference))?,
         };
         self.volumes.shift_insert(index, id, volume);
         Ok(())
+    }
+
+    pub fn set_volume_title(
+        &mut self,
+        id: &str,
+        new_title: String,
+    ) -> Result<String, InvalidReference> {
+        // Rename and re-id volume.
+        let index = self
+            .volumes
+            .keys()
+            .position(|v| v == id)
+            .ok_or(InvalidReference::Volume(id.to_owned()))?;
+        let mut volume = self.volumes.shift_remove_index(index).unwrap().1;
+        let new_id = create_id(&new_title);
+        volume.title = new_title;
+
+        // Update child entries.
+        for entry in &volume.entries {
+            let mut entry = self.entry_mut(entry).unwrap();
+            entry.parent_volume.0 = new_id.clone();
+        }
+
+        self.volumes.shift_insert(index, new_id.clone(), volume);
+        Ok(new_id)
     }
 
     fn volume_recount(&mut self, id: &str) {
@@ -237,11 +291,11 @@ impl Index {
         self.entries.get(id).map(|e| Wrapper::new(e, id.to_owned()))
     }
 
-    pub fn entries_mut(&mut self) -> impl Iterator<Item = EntryWrapperMut> {
-        self.entries
-            .iter_mut()
-            .map(|(k, e)| WrapperMut::new(e, k.to_owned()))
-    }
+    // pub fn entries_mut(&mut self) -> impl Iterator<Item = EntryWrapperMut> {
+    //     self.entries
+    //         .iter_mut()
+    //         .map(|(k, e)| WrapperMut::new(e, k.to_owned()))
+    // }
 
     pub fn entry_mut<'a>(&'a mut self, id: &str) -> Option<EntryWrapperMut> {
         self.entries
@@ -272,7 +326,7 @@ impl Index {
         summary: String,
         author: String,
         position: Position<(String, usize), String>,
-    ) -> Result<(), InvalidPositionReference> {
+    ) -> Result<(), InvalidReference> {
         let entry = Entry {
             title,
             old_ids: Vec::new(),
@@ -290,11 +344,11 @@ impl Index {
         &mut self,
         id: &str,
         position: Position<(String, usize), String>,
-    ) -> Result<(), InvalidPositionReference> {
+    ) -> Result<(), InvalidReference> {
         let entry = self
             .entries
             .remove(id)
-            .ok_or(InvalidPositionReference::Entry(id.to_owned()))?;
+            .ok_or(InvalidReference::Entry(id.to_owned()))?;
 
         // Update parent volume entry list.
         let parent_volume_id = &entry.parent_volume.0;
@@ -306,31 +360,50 @@ impl Index {
         self.insert_entry(id.to_owned(), entry, position)
     }
 
+    pub fn set_entry_title(&mut self, id: &str, new_title: String) -> Result<String, InvalidReference> {
+        // Rename and re-id entry.
+        let mut entry = self
+            .entries
+            .remove(id)
+            .ok_or(InvalidReference::Entry(id.to_owned()))?;
+        let new_id = create_id(&new_title);
+        entry.title = new_title;
+
+        // Update child entries.
+        for &section in &entry.sections {
+            let mut section = self.section_mut(section).unwrap();
+            section.parent_entry = new_id.clone();
+        }
+
+        self.entries.insert(new_id.clone(), entry);
+        Ok(new_id)
+    }
+
     fn insert_entry(
         &mut self,
         id: String,
         mut entry: Entry,
         position: Position<(String, usize), String>,
-    ) -> Result<(), InvalidPositionReference> {
+    ) -> Result<(), InvalidReference> {
         {
             let (mut volume, volume_part, index) = match position {
                 Position::StartOf((volume_id, volume_part)) => {
                     let volume = self
                         .volume_mut(&volume_id)
-                        .ok_or(InvalidPositionReference::Volume(volume_id))?;
+                        .ok_or(InvalidReference::Volume(volume_id))?;
                     (volume, volume_part, 0)
                 }
                 Position::EndOf((volume_id, volume_part)) => {
                     let volume = self
                         .volume_mut(&volume_id)
-                        .ok_or(InvalidPositionReference::Volume(volume_id))?;
+                        .ok_or(InvalidReference::Volume(volume_id))?;
                     let volume_length = volume.entries.len();
                     (volume, volume_part, volume_length)
                 }
                 Position::After(reference) => {
                     let entry = self
                         .entry(&reference)
-                        .ok_or(InvalidPositionReference::Entry(reference.clone()))?;
+                        .ok_or(InvalidReference::Entry(reference.clone()))?;
                     let (ref volume, volume_part) = entry.parent_volume;
                     let volume = volume.clone();
                     let volume = self.volume_mut(&volume).unwrap();
@@ -340,7 +413,7 @@ impl Index {
                 Position::Before(reference) => {
                     let entry = self
                         .entry(&reference)
-                        .ok_or(InvalidPositionReference::Entry(reference.clone()))?;
+                        .ok_or(InvalidReference::Entry(reference.clone()))?;
                     let (ref volume, volume_part) = entry.parent_volume;
                     let volume = volume.clone();
                     let volume = self.volume_mut(&volume).unwrap();
@@ -364,11 +437,11 @@ impl Index {
         self.sections.get(&id).map(|s| Wrapper::new(s, id))
     }
 
-    pub fn sections_mut(&mut self) -> impl Iterator<Item = SectionWrapperMut> {
-        self.sections
-            .iter_mut()
-            .map(|(&k, s)| WrapperMut::new(s, k))
-    }
+    // pub fn sections_mut(&mut self) -> impl Iterator<Item = SectionWrapperMut> {
+    //     self.sections
+    //         .iter_mut()
+    //         .map(|(&k, s)| WrapperMut::new(s, k))
+    // }
 
     pub fn section_mut(&mut self, id: u32) -> Option<SectionWrapperMut> {
         self.sections.get_mut(&id).map(|s| WrapperMut::new(s, id))
@@ -390,12 +463,13 @@ impl Index {
 
     pub fn new_section(
         &mut self,
-        id: u32,
         heading: Option<String>,
         description: String,
         summary: String,
         position: Position<String, u32>,
-    ) -> Result<(), InvalidPositionReference> {
+    ) -> Result<u32, InvalidReference> {
+        let id = self.next_section_id;
+        self.next_section_id += 1;
         let section = Section {
             description,
             summary,
@@ -408,18 +482,19 @@ impl Index {
             length: 0,
         };
 
-        self.insert_section(id, section, position)
+        self.insert_section(id, section, position)?;
+        Ok(id)
     }
 
     pub fn move_section(
         &mut self,
         id: u32,
         position: Position<String, u32>,
-    ) -> Result<(), InvalidPositionReference> {
+    ) -> Result<(), InvalidReference> {
         let section = self
             .sections
             .remove(&id)
-            .ok_or(InvalidPositionReference::Section(id))?;
+            .ok_or(InvalidReference::Section(id))?;
 
         // Update parent entry section list.
         let parent_entry_id = &section.parent_entry;
@@ -436,26 +511,26 @@ impl Index {
         id: u32,
         mut section: Section,
         position: Position<String, u32>,
-    ) -> Result<(), InvalidPositionReference> {
+    ) -> Result<(), InvalidReference> {
         {
             let (mut entry, index) = match position {
                 Position::StartOf(entry_id) => {
                     let entry = self
                         .entry_mut(&entry_id)
-                        .ok_or(InvalidPositionReference::Entry(entry_id))?;
+                        .ok_or(InvalidReference::Entry(entry_id))?;
                     (entry, 0)
                 }
                 Position::EndOf(entry_id) => {
                     let entry = self
                         .entry_mut(&entry_id)
-                        .ok_or(InvalidPositionReference::Entry(entry_id))?;
+                        .ok_or(InvalidReference::Entry(entry_id))?;
                     let entry_length = entry.sections.len();
                     (entry, entry_length)
                 }
                 Position::After(reference) => {
                     let section = self
                         .section(reference)
-                        .ok_or(InvalidPositionReference::Section(reference))?;
+                        .ok_or(InvalidReference::Section(reference))?;
                     let entry = section.parent_entry.clone();
                     let entry = self.entry_mut(&entry).unwrap();
                     let index = 1 + entry.sections.iter().position(|e| e == &reference).unwrap();
@@ -464,7 +539,7 @@ impl Index {
                 Position::Before(reference) => {
                     let section = self
                         .section(reference)
-                        .ok_or(InvalidPositionReference::Section(reference))?;
+                        .ok_or(InvalidReference::Section(reference))?;
                     let entry = section.parent_entry.clone();
                     let entry = self.entry_mut(&entry).unwrap();
                     let index = entry.sections.iter().position(|e| e == &reference).unwrap();
@@ -501,6 +576,10 @@ impl User {
 
     pub fn privilege(&self) -> UserPrivilege {
         self.privilege.clone()
+    }
+
+    pub fn set_privilege(&mut self, privilege: UserPrivilege) {
+        self.privilege = privilege;
     }
 
     pub fn has_code(&self, code: &str) -> bool {
@@ -577,7 +656,11 @@ impl User {
             return false;
         };
         let mut sections = entry.sections(index);
-        sections.all(|s| history.iter().any(|h| h.section == *s.id() && (h.ever_finished || !must_have_finished)))
+        sections.all(|s| {
+            history
+                .iter()
+                .any(|h| h.section == *s.id() && (h.ever_finished || !must_have_finished))
+        })
     }
 
     pub fn empty_history(&mut self) {
@@ -674,12 +757,20 @@ impl Volume {
         self.subtitle.as_ref().map(|x| x.as_str())
     }
 
+    pub fn set_subtitle(&mut self, subtitle: Option<String>) {
+        self.subtitle = subtitle;
+    }
+
     pub fn owner_id(&self) -> &str {
         &self.owner
     }
 
     pub fn content_type(&self) -> ContentType {
         self.content_type.clone()
+    }
+
+    pub fn set_content_type(&mut self, content_type: ContentType) {
+        self.content_type = content_type
     }
 
     pub fn entries<'a>(&'a self, index: &'a Index) -> impl Iterator<Item = EntryWrapper> {
@@ -745,8 +836,16 @@ impl Entry {
         &self.description
     }
 
+    pub fn set_description(&mut self, description: String) {
+        self.description = description;
+    }
+
     pub fn summary(&self) -> &str {
         &self.summary
+    }
+
+    pub fn set_summary(&mut self, summary: String) {
+        self.summary = summary;
     }
 
     pub fn section_ids(&self) -> &[u32] {
@@ -800,16 +899,28 @@ impl Section {
         self.status.clone()
     }
 
+    pub fn set_status(&mut self, status: ContentStatus) {
+        self.status = status;
+    }
+
     pub fn date(&self) -> NaiveDate {
         NaiveDate::parse_from_str(&self.date, "%Y-%m-%d").unwrap()
+    }
+
+    pub fn description(&self) -> &str {
+        &self.description
+    }
+
+    pub fn set_description(&mut self, description: String) {
+        self.description = description;
     }
 
     pub fn summary(&self) -> &str {
         &self.summary
     }
 
-    pub fn description(&self) -> &str {
-        &self.description
+    pub fn set_summary(&mut self, summary: String) {
+        self.summary = summary;
     }
 
     pub fn comments(&self) -> &[Comment] {
@@ -968,4 +1079,13 @@ pub fn roman_numeral(number: usize) -> &'static str {
         3 => "III",
         _ => "?",
     }
+}
+
+pub fn create_id(name: &str) -> String {
+    let name: String = name
+        .to_lowercase()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == ' ')
+        .collect();
+    name.replace(' ', "-")
 }
