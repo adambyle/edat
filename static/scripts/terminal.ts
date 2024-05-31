@@ -191,7 +191,8 @@ type Cmd =
         },
     }
     | "Volumes"
-    | "NextSectionId";
+    | "NextSectionId"
+    | "Images";
 
 const commandInput = document.getElementById("command") as HTMLInputElement;
 const elInvalidCommand = document.getElementById("invalid-command") as HTMLParagraphElement;
@@ -515,6 +516,8 @@ function parseCommand(command: string) {
         } else {
             parseError();
         }
+    } else if (root == "images") {
+        cmd("Images");
     } else {
         parseError();
     }
@@ -844,6 +847,44 @@ function cmd(command: Cmd) {
         const submitButton = document.getElementById("submit");
         if (submitButton instanceof HTMLButtonElement) {
             submitButton.onclick = submitAction;
+        }
+
+        const elImage = document.getElementById("image") as HTMLImageElement | null;
+        if (elImage) {
+            // Image console handling.
+            const imageIdInput = document.getElementById("image-id") as HTMLInputElement;
+            const imageUploadInput = document.getElementById("image-upload") as HTMLInputElement;
+            const uploadButton = document.getElementById("upload") as HTMLButtonElement;
+            const elImageFeedback = document.getElementById("image-feedback") as HTMLDivElement;
+
+            imageIdInput.onkeydown = (ev) => {
+                if (ev.key == "Enter") {
+                    elImage.src = `/image/${imageIdInput.value}.jpg`;
+                }
+            }
+
+            uploadButton.addEventListener("click", () => {
+                let files = imageUploadInput.files!;
+                let totalFiles = files.length;
+                let done = 0;
+
+                for (const file of files) {
+                    fetch(
+                        `/image/${file.name}`,
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": file.type },
+                            body: file,
+                        }
+                    ).then(res => res.text().then(text => {
+                        elImageFeedback.innerHTML += text;
+                        done += 1;
+                        if (done == totalFiles) {
+                            imageUploadInput.value = "";
+                        }
+                    }));
+                }
+            });
         }
     }));
 }

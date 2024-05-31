@@ -16,6 +16,8 @@ async fn main() {
     let app = Router::new()
         .route("/script/:file", get(routes::script))
         .route("/style/:file", get(routes::style))
+        .route("/image/:file", get(routes::image))
+        .route("/image/:file", post(routes::image_upload))
         .route("/login/:name/:code", post(routes::login))
         .route("/register", post(routes::register))
         .route("/preferences", post(routes::preferences))

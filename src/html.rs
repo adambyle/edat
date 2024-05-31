@@ -451,6 +451,31 @@ pub mod terminal {
         }
     }
 
+    pub fn image_error(id: &str) -> maud::Markup {
+        html! {
+            p.error { "Failed to upload image: " (id) }
+        }
+    }
+
+    pub fn image_success(id: &str) -> maud::Markup {
+        html! {
+            p { "Image uploaded: " (id) }
+        }
+    }
+
+    pub fn images() -> maud::Markup {
+        html! {
+            p { b { "Images console" } }
+            label { "Enter image ID to load" }
+            input #image-id type="text";
+            img #image;
+            p { "Upload here" }
+            input #image-upload type="file" multiple;
+            button #upload { "Upload" }
+            #image-feedback {}
+        }
+    }
+
     pub fn user(user: UserInfo) -> maud::Markup {
         html! {
             p { b { "Name " (user.first_name) " " (user.last_name) } }

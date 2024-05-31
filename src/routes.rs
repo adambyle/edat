@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::io::{Read, Write};
 use std::{fs::File, path::Path};
 
+use axum::body::Bytes;
 use axum::extract::{Path as ReqPath, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -14,11 +15,27 @@ use crate::html::home::Widget;
 use crate::{data, html, AppState};
 
 pub async fn script(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
-    static_file("scripts", file_name, "text/javascript")
+    static_file("static/scripts", file_name, "text/javascript")
 }
 
 pub async fn style(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
-    static_file("styles", file_name, "text/css")
+    static_file("static/styles", file_name, "text/css")
+}
+
+pub async fn image(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
+    static_file("content/images", file_name, "image/jpeg")
+}
+
+pub async fn image_upload(headers: HeaderMap, ReqPath(file_name): ReqPath<String>, body: Bytes) -> impl IntoResponse {
+    let image_path = format!("content/images/{file_name}");
+    let image_path = Path::new(&image_path);
+    let is_jpeg = headers.get("Content-Type").is_some_and(|c| c == "image/jpeg");
+    if !file_name.ends_with(".jpg") || image_path.exists() || !is_jpeg {
+        return html::terminal::image_error(&file_name);
+    }
+    let mut file = File::create(image_path).unwrap();
+    file.write(&body[..]).unwrap();
+    html::terminal::image_success(&file_name)
 }
 
 pub async fn login(
@@ -227,16 +244,16 @@ pub async fn preferences(
 }
 
 fn static_file(
-    subfolder: &str,
+    folder: &str,
     file_name: String,
     content_type: &'static str,
 ) -> impl IntoResponse {
-    let path = Path::new("static").join(subfolder).join(file_name);
+    let path = Path::new(folder).join(file_name);
 
     match File::open(path.clone()) {
         Ok(mut file) => {
-            let mut contents = String::new();
-            file.read_to_string(&mut contents).unwrap();
+            let mut contents = Vec::new();
+            file.read_to_end(&mut contents).unwrap();
             (
                 StatusCode::OK,
                 [(header::CONTENT_TYPE, content_type)],
@@ -248,7 +265,7 @@ fn static_file(
             (
                 StatusCode::NOT_FOUND,
                 [(header::CONTENT_TYPE, "text/plain")],
-                "".to_owned(),
+                "".as_bytes().to_owned(),
             )
         }
     }
@@ -397,6 +414,7 @@ mod cmd {
         },
         Volumes,
         NextSectionId,
+        Images,
     }
 }
 
@@ -657,6 +675,9 @@ pub async fn cmd(
             let volume = index.volume(&id);
             let volume = or_terminal_error(volume, "volume", &id)?;
             terminal::volume(volume_info(&index, volume))
+        }
+        B::Images => {
+            terminal::images()
         }
         B::MoveEntry { id, position } => {
             validate(index.move_entry(&id, position))?;

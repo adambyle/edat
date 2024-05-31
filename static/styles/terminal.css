@@ -82,3 +82,12 @@ label, input, textarea {
 #forbidden {
     color: red;
 }
+
+img {
+    width: 100%;
+    margin-bottom: 24px;
+}
+
+#image-feedback p {
+    margin-bottom: 0;
+}

@@ -320,11 +320,11 @@ impl Index {
         volume.volume_count = volume_count;
     }
 
-    pub fn entries(&self) -> impl Iterator<Item = EntryWrapper> {
-        self.entries
-            .iter()
-            .map(|(k, e)| Wrapper::new(e, k.to_owned()))
-    }
+    // pub fn entries(&self) -> impl Iterator<Item = EntryWrapper> {
+    //     self.entries
+    //         .iter()
+    //         .map(|(k, e)| Wrapper::new(e, k.to_owned()))
+    // }
 
     pub fn entry<'a>(&'a self, id: &str) -> Option<EntryWrapper> {
         self.entries.get(id).map(|e| Wrapper::new(e, id.to_owned()))
@@ -691,41 +691,41 @@ impl User {
         }
     }
 
-    pub fn has_read_section(&self, section: u32, must_have_finished: bool) -> bool {
-        let Some(ref history) = self.history else {
-            return false;
-        };
-        history
-            .iter()
-            .any(|h| h.section == section && (h.ever_finished || !must_have_finished))
-    }
+    // pub fn has_read_section(&self, section: u32, must_have_finished: bool) -> bool {
+    //     let Some(ref history) = self.history else {
+    //         return false;
+    //     };
+    //     history
+    //         .iter()
+    //         .any(|h| h.section == section && (h.ever_finished || !must_have_finished))
+    // }
 
-    pub fn has_started_entry(&self, entry: &str, index: &Index) -> bool {
-        let Some(ref history) = self.history else {
-            return false;
-        };
-        history.iter().any(|h| {
-            let Some(section) = index.section(h.section) else {
-                return false;
-            };
-            section.parent_entry == entry
-        })
-    }
+    // pub fn has_started_entry(&self, entry: &str, index: &Index) -> bool {
+    //     let Some(ref history) = self.history else {
+    //         return false;
+    //     };
+    //     history.iter().any(|h| {
+    //         let Some(section) = index.section(h.section) else {
+    //             return false;
+    //         };
+    //         section.parent_entry == entry
+    //     })
+    // }
 
-    pub fn has_read_entry(&self, entry: &str, index: &Index, must_have_finished: bool) -> bool {
-        let Some(ref history) = self.history else {
-            return false;
-        };
-        let Some(entry) = index.entry(entry) else {
-            return false;
-        };
-        let mut sections = entry.sections(index);
-        sections.all(|s| {
-            history
-                .iter()
-                .any(|h| h.section == *s.id() && (h.ever_finished || !must_have_finished))
-        })
-    }
+    // pub fn has_read_entry(&self, entry: &str, index: &Index, must_have_finished: bool) -> bool {
+    //     let Some(ref history) = self.history else {
+    //         return false;
+    //     };
+    //     let Some(entry) = index.entry(entry) else {
+    //         return false;
+    //     };
+    //     let mut sections = entry.sections(index);
+    //     sections.all(|s| {
+    //         history
+    //             .iter()
+    //             .any(|h| h.section == *s.id() && (h.ever_finished || !must_have_finished))
+    //     })
+    // }
 
     pub fn empty_history(&mut self) {
         self.history = Some(Vec::new());
@@ -789,17 +789,17 @@ impl History {
         self.section
     }
 
-    pub fn progress(&self) -> usize {
-        self.progress
-    }
+    // pub fn progress(&self) -> usize {
+    //     self.progress
+    // }
 
     pub fn timestamp(&self) -> i64 {
         self.timestamp
     }
 
-    pub fn ever_finished(&self) -> bool {
-        self.ever_finished
-    }
+    // pub fn ever_finished(&self) -> bool {
+    //     self.ever_finished
+    // }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -1100,9 +1100,9 @@ impl<'a, T: Save> WrapperMut<'a, T> {
         }
     }
 
-    pub fn id(&self) -> &T::Id {
-        &self.id
-    }
+    // pub fn id(&self) -> &T::Id {
+    //     &self.id
+    // }
 }
 
 impl<'a, T: Save> Deref for WrapperMut<'a, T> {
