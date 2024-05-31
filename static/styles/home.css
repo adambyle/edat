@@ -17,6 +17,22 @@ main {
     }
 }
 
+#empty-widget {
+    p {
+        font: 14px var(--sans);
+        color: var(--content);
+        padding: 0 24px;
+        margin-bottom: 12px;
+    }
+
+    a {
+        background: none;
+        font: 14px var(--sans);
+        padding: 0 24px;
+        color: var(--gray);
+    }
+}
+
 #recent-widget {
     & #recent-expand {
         background: none;
@@ -107,6 +123,7 @@ main {
             & .description {
                 opacity: 0;
                 position: absolute;
+                padding-right: 12px;
             }
 
             & .details {
@@ -123,6 +140,12 @@ main {
         }
 
         & .unread {
+            font: 11px var(--sans);
+            color: var(--content);
+            margin-top: 6px;
+        }
+
+        & .read {
             font: 11px var(--sans);
             color: var(--gray);
             margin-top: 6px;

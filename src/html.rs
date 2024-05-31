@@ -158,7 +158,7 @@ pub mod home {
     }
 
     impl RecentWidget {
-        fn section(&self, section: &RecentSection) -> Markup {
+        fn section(&self, section: &RecentSection, show_previous: bool) -> Markup {
             html! {
                 @let concise = html! {
                     p.description { (PreEscaped(&section.description)) }
@@ -181,7 +181,7 @@ pub mod home {
                         }
                     }
                 };
-                .section {
+                .section edat-unread[section.read.is_none()] {
                     a.section-info href={ "/section/" (section.id) } {
                         @let volume = html! {
                             @if section.parent_volume.2 == 1 {
@@ -220,12 +220,12 @@ pub mod home {
                             }
                         }
                     }
-                    @if !section.read {
-                        span.unread { "UNREAD" }
+                    @if let Some(ref time) = section.read {
+                        span.read { "You read on " utc { (time) } }
                     } @else {
-                        span.unread style="opacity: 0" { "UNREAD" }
+                        span.unread { "Unread" }
                     }
-                    @if let Some((id, ref description)) = section.previous {
+                    @if let (true, Some((id, description))) = (show_previous, &section.previous) {
                         @let previous = html! {
                             p.previous-label {"Previous section"}
                             p.previous-description { (PreEscaped(description)) }
@@ -261,7 +261,11 @@ pub mod home {
                 h2 { "Recent uploads" }
                 #recent-carousel class=(detail_class) {
                     @for section in &self.sections {
-                        (self.section(section))
+                        @let show_previous = section
+                            .previous
+                            .as_ref()
+                            .is_some_and(|p| !self.sections.iter().any(|s| s.id != p.0));
+                        (self.section(section, show_previous))
                     }
                 }
                 button id="recent-expand" {
@@ -291,7 +295,7 @@ pub mod home {
         pub summary: String,
         pub date: String,
         pub length: String,
-        pub read: bool,
+        pub read: Option<i64>,
     }
 
     pub trait Widget {
@@ -320,7 +324,7 @@ pub fn home(headers: &HeaderMap, widgets: Vec<Box<dyn home::Widget>>) -> maud::M
                 .widget #empty-widget {
                     h2 { "Customize your homepage" }
                     p { "You haven’t added any elements to your homepage yet, like quick access to recent entries or library shortcuts, but you can do so in your settings." }
-                    a href="/me" { button { "Go to settings" } }
+                    a href="/me" { "Go to settings" }
                 }
             }
         }
@@ -355,10 +359,7 @@ pub fn terminal(headers: &HeaderMap, allowed: bool) -> maud::Markup {
 pub mod terminal {
     use std::fmt::Display;
 
-    use chrono::Utc;
     use maud::{html, PreEscaped};
-
-    use crate::data;
 
     pub struct UserInfo {
         pub first_name: String,
@@ -372,7 +373,7 @@ pub mod terminal {
 
     pub struct UserHistoryEntry {
         pub entry: String,
-        pub date: String,
+        pub date: i64,
     }
 
     pub struct UserPreference {
@@ -426,7 +427,7 @@ pub mod terminal {
 
     pub struct SectionComment {
         pub author: String,
-        pub timestamp: String,
+        pub timestamp: i64,
         pub contents: String,
     }
 
@@ -462,7 +463,7 @@ pub mod terminal {
                     li {
                         mono { (user.entry) }
                         " read "
-                        (user.date)
+                        utc { (user.date) }
                     }
                 }
             }
@@ -605,7 +606,7 @@ pub mod terminal {
             }
             p { "Status: " mono.info { (section.status) } }
             p { "Length: " span.info { (section.length) } }
-            (edit_section(Some(&section)))
+            (edit_section(Some(&section), &section.date))
             p { "Perspectives: " mono.info { (section.perspectives) }}
             p { "Comments: " }
             ul {
@@ -613,7 +614,7 @@ pub mod terminal {
                     li {
                        mono { (comment.author) }
                        " on "
-                       (comment.timestamp)
+                       utc { (comment.timestamp) }
                        " — "
                        (PreEscaped(&comment.contents))
                     }
@@ -622,17 +623,19 @@ pub mod terminal {
         }
     }
 
-    pub fn edit_section(section: Option<&SectionInfo>) -> maud::Markup {
-        let now = data::date(&Utc::now());
-        let (heading, description, summary, date) = match section {
+    pub fn edit_section(section: Option<&SectionInfo>, date: &str) -> maud::Markup {
+        let (heading, description, summary) = match section {
             Some(SectionInfo {
                 heading,
                 description,
                 summary,
-                date,
                 ..
-            }) => (heading.as_ref(), description.as_ref(), summary.as_ref(), date.to_owned()),
-            None => ("", "", "", Utc::now().format("%Y-%m-%d").to_string()),
+            }) => (
+                heading.as_ref(),
+                description.as_ref(),
+                summary.as_ref(),
+            ),
+            None => ("", "", ""),
         };
         html! {
             label { "Heading" }

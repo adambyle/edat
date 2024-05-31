@@ -1,9 +1,19 @@
-import "./universal.js";
+import * as universal from "./universal.js";
 import "./standard.js";
+
+universal.processUtcs();
 
 const elRecentExpand = document.getElementById("recent-expand") as HTMLButtonElement | null;
 const elRecentCarousel = document.getElementById("recent-carousel") as HTMLDivElement;
 if (elRecentExpand) {
+    const unreadSection = elRecentCarousel.querySelector(".section[edat-unread]");
+    if (unreadSection) {
+        elRecentCarousel.scrollBy({
+            left: unreadSection.getBoundingClientRect().left - 48,
+            behavior: "smooth",
+        });
+    }
+
     const concise = document.getElementsByClassName("concise") as HTMLCollectionOf<HTMLElement>;
     const detailed = document.getElementsByClassName("detailed") as HTMLCollectionOf<HTMLElement>;
     let expandTimeout: number;

@@ -4,7 +4,7 @@ use std::{
     ops::Deref,
 };
 
-use chrono::{DateTime, Datelike, NaiveDate, NaiveDateTime, Utc};
+use chrono::{Datelike, NaiveDate, Utc};
 use indexmap::IndexMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -285,6 +285,7 @@ impl Index {
         new_title: String,
     ) -> Result<String, InvalidReference> {
         let _ = remove_file(format!("content/volumes/{id}.json")).unwrap();
+        let _ = remove_file(format!("content/volumes/{id}.intro")).unwrap();
 
         // Rename and re-id volume.
         let index = self
@@ -303,6 +304,7 @@ impl Index {
         }
 
         self.volumes.shift_insert(index, new_id.clone(), volume);
+        File::create(format!("content/volumes/{id}.intro")).unwrap();
         self.save();
         Ok(new_id)
     }
@@ -412,6 +414,7 @@ impl Index {
             .ok_or(InvalidReference::Entry(id.to_owned()))?;
         let new_id = create_id(&new_title);
         entry.title = process_text(&new_title);
+        entry.old_ids.push(id.to_owned());
 
         // Update child entries.
         for &section in &entry.sections {
@@ -661,8 +664,12 @@ impl User {
         self.history.as_ref().map(|h| h.as_ref())
     }
 
-    pub fn read_section(&mut self, section: u32, progress: usize, finished: bool) {
-        let now = Utc::now().timestamp();
+    pub fn read_section(
+        &mut self,
+        section: u32,
+        progress: usize,
+        finished: bool,
+    ) {
         let history = self.init_history();
 
         // Update the timestamp on a section if it is already present
@@ -671,13 +678,13 @@ impl User {
             Some(section) => {
                 section.ever_finished |= finished;
                 section.progress = progress;
-                section.timestamp = now;
+                section.timestamp = Utc::now().timestamp();
             }
             None => {
                 history.push(History {
                     section,
                     progress,
-                    timestamp: now,
+                    timestamp: Utc::now().timestamp(),
                     ever_finished: finished,
                 });
             }
@@ -786,8 +793,8 @@ impl History {
         self.progress
     }
 
-    pub fn timestamp(&self) -> DateTime<Utc> {
-        DateTime::from_timestamp(self.timestamp, 0).unwrap()
+    pub fn timestamp(&self) -> i64 {
+        self.timestamp
     }
 
     pub fn ever_finished(&self) -> bool {
@@ -1040,8 +1047,8 @@ impl Comment {
         &self.author
     }
 
-    pub fn timestamp(&self) -> DateTime<Utc> {
-        DateTime::from_timestamp(self.timestamp, 0).unwrap()
+    pub fn timestamp(&self) -> i64 {
+        self.timestamp
     }
 
     pub fn contents(&self) -> &str {
@@ -1120,15 +1127,6 @@ impl<'a, T: Save> Drop for WrapperMut<'a, T> {
 }
 
 pub fn date_naive(date: &NaiveDate) -> String {
-    let now = Utc::now();
-    if now.year_ce() == date.year_ce() {
-        date.format("%b %-d").to_string()
-    } else {
-        date.format("%b %-d, %Y").to_string()
-    }
-}
-
-pub fn date(date: &DateTime<Utc>) -> String {
     let now = Utc::now();
     if now.year_ce() == date.year_ce() {
         date.format("%b %-d").to_string()

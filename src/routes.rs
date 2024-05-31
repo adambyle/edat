@@ -7,7 +7,7 @@ use axum::extract::{Path as ReqPath, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{NaiveDate, Utc};
 use serde::Deserialize;
 
 use crate::html::home::Widget;
@@ -159,7 +159,10 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
                         .to_owned();
                     (previous_section, previous_description)
                 });
-                let read = history.iter().any(|h| h.section_id() == *section.id());
+                let read = history
+                    .iter()
+                    .find(|h| h.section_id() == *section.id())
+                    .map(|h| h.timestamp());
                 let parent_volume = index.volume(parent_entry.parent_volume_id()).unwrap();
                 let parent_volume = (
                     parent_volume.title().to_owned(),
@@ -288,7 +291,9 @@ mod cmd {
         GetSection {
             id: u32,
         },
-        NewSection,
+        NewSection {
+            date: String,
+        },
         SetSection {
             id: u32,
             heading: String,
@@ -426,7 +431,7 @@ pub async fn cmd(
         let codes = user.codes().join(" ");
 
         // Transform the list of read sections into a list of read entries (and their date).
-        let mut history: Vec<(String, DateTime<Utc>)> = Vec::new();
+        let mut history: Vec<(String, i64)> = Vec::new();
         if let Some(user_history) = user.history() {
             for user_history_entry in user_history {
                 let section = index.section(user_history_entry.section_id()).unwrap();
@@ -444,7 +449,7 @@ pub async fn cmd(
             .into_iter()
             .map(|h| terminal::UserHistoryEntry {
                 entry: h.0,
-                date: data::date(&h.1),
+                date: h.1,
             })
             .collect();
         history.sort_by(|a, b| b.date.cmp(&a.date));
@@ -528,7 +533,7 @@ pub async fn cmd(
             .map(|c| terminal::SectionComment {
                 author: c.author_id().to_owned(),
                 contents: c.contents().to_owned(),
-                timestamp: data::date(&c.timestamp()),
+                timestamp: c.timestamp(),
             })
             .collect();
         terminal::SectionInfo {
@@ -670,7 +675,7 @@ pub async fn cmd(
         }
         B::NextSectionId => return Ok(Json(index.next_section_id()).into_response()),
         B::NewEntry => terminal::edit_entry(None),
-        B::NewSection => terminal::edit_section(None),
+        B::NewSection { date } => terminal::edit_section(None, &date),
         B::NewUser => terminal::edit_user(None),
         B::NewVolume => terminal::edit_volume(None),
         B::RemoveUserCode { id, code } => {
@@ -725,7 +730,8 @@ pub async fn cmd(
             summary,
             date,
         } => {
-            let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|_| terminal::bad_date(&date))?;
+            let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+                .map_err(|_| terminal::bad_date(&date))?;
             let heading = if heading == "" { None } else { Some(heading) };
             let id = validate(index.new_section(heading, description, summary, date, position))?;
             let section = index.section(id).unwrap();
@@ -764,9 +770,9 @@ pub async fn cmd(
                 section.set_heading(heading);
                 section.set_description(description);
                 section.set_summary(summary);
-                let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d").map_err(|_| terminal::bad_date(&date))?;
+                let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+                    .map_err(|_| terminal::bad_date(&date))?;
                 section.set_date(date);
-                
             }
             let section = index.section(id).unwrap();
             terminal::section(section_info(&index, section))

@@ -1,4 +1,4 @@
-import "./universal.js";
+import * as universal from "./universal.js";
 
 type Position<C, I> =
     | { "StartOf": C }
@@ -38,7 +38,11 @@ type Cmd =
             id: number,
         },
     }
-    | "NewSection"
+    | { 
+        NewSection: {
+            date: string
+        }
+    }
     | {
         SetSection: {
             id: number,
@@ -286,7 +290,11 @@ function parseCommand(command: string) {
                         return;
                     }
                     submitAction = newSection(position[0]);
-                    cmd("NewSection");
+                    cmd({
+                        NewSection: {
+                            date: universal.nowString(),
+                        },
+                    });
                     break;
                 }
             case "entry":
@@ -832,6 +840,7 @@ function cmd(command: Cmd) {
         body: JSON.stringify(command),
     }).then(res => res.text().then(text => {
         elResponse.innerHTML = text;
+        universal.processUtcs();
         const submitButton = document.getElementById("submit");
         if (submitButton instanceof HTMLButtonElement) {
             submitButton.onclick = submitAction;

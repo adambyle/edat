@@ -1,4 +1,4 @@
-import "./universal.js";
+import * as universal from "./universal.js";
 
 const recordChoices = document.getElementsByClassName("record-choice") as HTMLCollectionOf<HTMLInputElement>;
 const entries = document.getElementsByClassName("entry") as HTMLCollectionOf<HTMLDivElement>;
