@@ -1,4 +1,5 @@
 /target
 /users/*
 /content/*
+/archive.zip
 **/*.js

@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::fs::read_to_string;
-use std::io::{Read, Write};
+use std::fs::{self, read_to_string};
+use std::io::{self, Read, Write};
+use std::path::PathBuf;
 use std::{fs::File, path::Path};
 
 use axum::body::Bytes;
@@ -9,8 +10,10 @@ use axum::extract::{Path as ReqPath, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use chrono::{NaiveDate, Utc};
+use chrono::{Datelike, NaiveDate, Utc};
 use serde::Deserialize;
+use zip::write::SimpleFileOptions;
+use zip::ZipWriter;
 
 use crate::html::home::Widget;
 use crate::{data, html, AppState};
@@ -57,11 +60,46 @@ pub async fn login(
         if (name == user.first_name().to_lowercase() || &name == user.id()) && user.has_code(&code)
         {
             let cookie = format!("edat_user={}; Max-Age=31536000", user.id());
-            return (StatusCode::OK, [(header::SET_COOKIE, cookie)], user.id().to_owned()).into_response();
+            return (
+                StatusCode::OK,
+                [(header::SET_COOKIE, cookie)],
+                user.id().to_owned(),
+            )
+                .into_response();
         }
     }
 
     StatusCode::UNAUTHORIZED.into_response()
+}
+
+pub async fn archive() -> impl IntoResponse {
+    let now = Utc::now();
+    let archive_path = format!("edat-{}-{}-{}.zip", now.year(), now.month(), now.day());
+    let archive_file = File::create(&archive_path).unwrap();
+    let mut zip = ZipWriter::new(archive_file);
+
+    fn directory(path: PathBuf, zip: &mut ZipWriter<File>) {
+        let options = SimpleFileOptions::default();
+        for entry in fs::read_dir(path).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.is_dir() {
+                directory(path, zip);
+            } else {
+                zip.start_file(path.to_str().unwrap(), options).unwrap();
+                let mut file = File::open(path).unwrap();
+                io::copy(&mut file, zip).unwrap();
+            }
+        }
+    }
+
+    directory("content".into(), &mut zip);
+    directory("users".into(), &mut zip);
+    zip.finish().unwrap();
+
+    let response = static_file("./", archive_path.clone(), "application/zip");
+    fs::remove_file(archive_path).unwrap();
+    response
 }
 
 #[derive(Deserialize)]
@@ -253,8 +291,8 @@ pub async fn preferences(
     }
 }
 
-fn static_file(folder: &str, file_name: String, content_type: &'static str) -> impl IntoResponse {
-    let path = Path::new(folder).join(file_name);
+fn static_file(folder: &str, file_name: String, content_type: &'static str) -> Response {
+    let path = Path::new(folder).join(&file_name);
 
     match File::open(path.clone()) {
         Ok(mut file) => {
@@ -262,17 +300,20 @@ fn static_file(folder: &str, file_name: String, content_type: &'static str) -> i
             file.read_to_end(&mut contents).unwrap();
             (
                 StatusCode::OK,
-                [(header::CONTENT_TYPE, content_type)],
+                [
+                    (header::CONTENT_TYPE, content_type),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        &format!("inline; filename=\"{}\"", file_name),
+                    ),
+                ],
                 contents,
             )
+                .into_response()
         }
         Err(_) => {
             println!("Invalid path: {}", path.to_str().unwrap());
-            (
-                StatusCode::NOT_FOUND,
-                [(header::CONTENT_TYPE, "text/plain")],
-                "".as_bytes().to_owned(),
-            )
+            StatusCode::NOT_FOUND.into_response()
         }
     }
 }

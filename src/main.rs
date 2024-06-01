@@ -23,6 +23,7 @@ async fn main() {
         .route("/preferences", post(routes::preferences))
         .route("/terminal", get(routes::terminal))
         .route("/cmd", post(routes::cmd))
+        .route("/archive", get(routes::archive))
         .route("/", get(routes::home))
         .with_state(state);
 
