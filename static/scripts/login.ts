@@ -19,7 +19,7 @@ function login() {
         console.log(res.status);
         if (res.status == 200) {
             res.text().then(text => {
-                document.cookie = `edat_user=${text}`;
+                const expirationDate = new Date(Date.now() + 100 * 1000 * 60 * 60 * 24 * 365);
                 window.location.reload();
             });
         } else {

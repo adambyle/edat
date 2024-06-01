@@ -305,7 +305,7 @@ pub mod home {
     }
 }
 
-pub fn home(headers: &HeaderMap, widgets: Vec<Box<dyn home::Widget>>) -> maud::Markup {
+pub fn home(headers: &HeaderMap, widgets: Vec<Box<dyn home::Widget>>, introduction: Vec<&str>) -> maud::Markup {
     let body = html! {
         h1 #title { span { "Every Day’s a Thursday" } }
         main {
@@ -327,8 +327,15 @@ pub fn home(headers: &HeaderMap, widgets: Vec<Box<dyn home::Widget>>) -> maud::M
                     a href="/me" { "Go to settings" }
                 }
             }
+            .widget #intro-widget {
+                h2 { "Introduction" }
+                .introduction {
+                    @for line in &introduction {
+                        p { (PreEscaped(line)) }
+                    }
+                }
+            }
         }
-        p { "TEST" }
     };
     universal(body, &headers, "home", "Home")
 }
@@ -435,7 +442,7 @@ pub mod terminal {
 
     pub fn error(category: &str, id: impl Display) -> maud::Markup {
         html! {
-            p.error { "Unknown " (category) " " (id) }
+            p.error { "Unknown " (category) " " mono { (id) } }
         }
     }
 
@@ -473,6 +480,15 @@ pub mod terminal {
             input #image-upload type="file" multiple;
             button #upload { "Upload" }
             #image-feedback {}
+        }
+    }
+
+    pub fn contents(id: impl Display, contents: String) -> maud::Markup {
+        html! {
+            p { b { "Contents for " (id) } }
+            textarea #contents { (PreEscaped(contents)) }
+            div #processing {}
+            button #submit { "Submit" }
         }
     }
 

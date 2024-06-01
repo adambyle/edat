@@ -25,8 +25,9 @@ export function changeTheme(theme: string) {
         return;
     }
     localStorage.edatTheme = theme;
-    document.cookie = `edat_theme=${theme}`;
-    
+    const expirationDate = new Date(Date.now() + 100 * 1000 * 60 * 60 * 24 * 365);
+    document.cookie = `edat_theme=${theme}; expires=${expirationDate.toUTCString()};`;
+
     if (theme == "dark") {
         document.body.classList.add("dark-theme");
     } else {

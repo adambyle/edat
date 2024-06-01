@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::fs::read_to_string;
 use std::io::{Read, Write};
 use std::{fs::File, path::Path};
 
@@ -26,10 +27,16 @@ pub async fn image(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
     static_file("content/images", file_name, "image/jpeg")
 }
 
-pub async fn image_upload(headers: HeaderMap, ReqPath(file_name): ReqPath<String>, body: Bytes) -> impl IntoResponse {
+pub async fn image_upload(
+    headers: HeaderMap,
+    ReqPath(file_name): ReqPath<String>,
+    body: Bytes,
+) -> impl IntoResponse {
     let image_path = format!("content/images/{file_name}");
     let image_path = Path::new(&image_path);
-    let is_jpeg = headers.get("Content-Type").is_some_and(|c| c == "image/jpeg");
+    let is_jpeg = headers
+        .get("Content-Type")
+        .is_some_and(|c| c == "image/jpeg");
     if !file_name.ends_with(".jpg") || image_path.exists() || !is_jpeg {
         return html::terminal::image_error(&file_name);
     }
@@ -41,7 +48,7 @@ pub async fn image_upload(headers: HeaderMap, ReqPath(file_name): ReqPath<String
 pub async fn login(
     State(state): State<AppState>,
     ReqPath((name, code)): ReqPath<(String, String)>,
-) -> impl IntoResponse {
+) -> Response {
     let index = state.index.lock().unwrap();
     let name = name.to_lowercase().replace(char::is_whitespace, "");
     let code = code.to_lowercase();
@@ -49,11 +56,12 @@ pub async fn login(
     for user in index.users() {
         if (name == user.first_name().to_lowercase() || &name == user.id()) && user.has_code(&code)
         {
-            return (StatusCode::OK, user.id().to_owned());
+            let cookie = format!("edat_user={}; Max-Age=31536000", user.id());
+            return (StatusCode::OK, [(header::SET_COOKIE, cookie)], user.id().to_owned()).into_response();
         }
     }
 
-    (StatusCode::UNAUTHORIZED, "".to_owned())
+    StatusCode::UNAUTHORIZED.into_response()
 }
 
 #[derive(Deserialize)]
@@ -220,7 +228,9 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
         widgets.push(widget);
     }
 
-    html::home(&headers, widgets)
+    let intro = read_to_string("content/edat.intro").unwrap();
+    let intro_lines: Vec<&str> = intro.lines().filter(|l| l.len() > 0).collect();
+    html::home(&headers, widgets, intro_lines)
 }
 
 pub async fn preferences(
@@ -243,11 +253,7 @@ pub async fn preferences(
     }
 }
 
-fn static_file(
-    folder: &str,
-    file_name: String,
-    content_type: &'static str,
-) -> impl IntoResponse {
+fn static_file(folder: &str, file_name: String, content_type: &'static str) -> impl IntoResponse {
     let path = Path::new(folder).join(file_name);
 
     match File::open(path.clone()) {
@@ -415,6 +421,20 @@ mod cmd {
         Volumes,
         NextSectionId,
         Images,
+        GetContents {
+            id: u32,
+        },
+        SetContents {
+            id: u32,
+            content: String,
+        },
+        GetIntro {
+            id: Option<String>,
+        },
+        SetIntro {
+            id: Option<String>,
+            content: String,
+        },
     }
 }
 
@@ -656,11 +676,35 @@ pub async fn cmd(
             index.remove_volume(&id);
             terminal::volumes(volumes(&index))
         }
+        B::GetContents { id } => {
+            let section = index.section(id);
+            or_terminal_error(section, "section", &id)?;
+            let mut section_file = File::open(format!("content/sections/{}.txt", id)).unwrap();
+            let mut contents = String::new();
+            section_file.read_to_string(&mut contents).unwrap();
+            terminal::contents(id, contents)
+        }
         B::GetEntry { id } => {
             let entry = index.entry(&id);
             let entry = or_terminal_error(entry, "entry", &id)?;
             terminal::entry(entry_info(&index, entry))
         }
+        B::GetIntro { id } => match id {
+            None => {
+                let mut intro_file = File::open("content/edat.intro").unwrap();
+                let mut contents = String::new();
+                intro_file.read_to_string(&mut contents).unwrap();
+                terminal::contents("edat", contents)
+            }
+            Some(id) => {
+                let volume = index.volume(&id);
+                or_terminal_error(volume, "volume", &id)?;
+                let mut intro_file = File::open(format!("content/volumes/{}.intro", id)).unwrap();
+                let mut contents = String::new();
+                intro_file.read_to_string(&mut contents).unwrap();
+                terminal::contents(id, contents)
+            }
+        },
         B::GetSection { id } => {
             let section = index.section(id);
             let section = or_terminal_error(section, "section", &id)?;
@@ -676,9 +720,7 @@ pub async fn cmd(
             let volume = or_terminal_error(volume, "volume", &id)?;
             terminal::volume(volume_info(&index, volume))
         }
-        B::Images => {
-            terminal::images()
-        }
+        B::Images => terminal::images(),
         B::MoveEntry { id, position } => {
             validate(index.move_entry(&id, position))?;
             let entry = index.entry(&id).unwrap();
@@ -717,6 +759,17 @@ pub async fn cmd(
             let section = index.section(id).unwrap();
             terminal::section(section_info(&index, section))
         }
+        B::SetContents {
+            id,
+            content: contents,
+        } => {
+            let section = index.section(id);
+            or_terminal_error(section, "section", &id)?;
+            let contents = data::process_text(&contents);
+            let mut contents_file = File::create(format!("content/sections/{}.txt", id)).unwrap();
+            contents_file.write_all(contents.as_bytes()).unwrap();
+            terminal::contents(id, contents)
+        }
         B::SetEntry {
             id,
             title,
@@ -732,6 +785,23 @@ pub async fn cmd(
             }
             let entry = index.entry(&id).unwrap();
             terminal::entry(entry_info(&index, entry))
+        }
+        B::SetIntro {
+            id,
+            content: contents,
+        } => {
+            let filename = match id {
+                None => "content/edat.intro".to_owned(),
+                Some(ref id) => {
+                    let volume = index.volume(id);
+                    or_terminal_error(volume, "volume", id)?;
+                    format!("content/volumes/{id}.intro")
+                }
+            };
+            let contents = data::process_text(&contents);
+            let mut intro_file = File::create(filename).unwrap();
+            intro_file.write_all(contents.as_bytes()).unwrap();
+            terminal::contents(id.unwrap_or("edat".to_owned()), contents)
         }
         B::SetNewEntry {
             title,

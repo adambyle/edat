@@ -38,7 +38,7 @@ type Cmd =
             id: number,
         },
     }
-    | { 
+    | {
         NewSection: {
             date: string
         }
@@ -192,7 +192,29 @@ type Cmd =
     }
     | "Volumes"
     | "NextSectionId"
-    | "Images";
+    | "Images"
+    | {
+        GetIntro: {
+            id: string | null,
+        }
+    }
+    | {
+        SetIntro: {
+            id: string | null,
+            content: string,
+        }
+    }
+    | {
+        GetContents: {
+            id: number,
+        }
+    }
+    | {
+        SetContents: {
+            id: number,
+            content: string,
+        }
+    };
 
 const commandInput = document.getElementById("command") as HTMLInputElement;
 const elInvalidCommand = document.getElementById("invalid-command") as HTMLParagraphElement;
@@ -518,9 +540,72 @@ function parseCommand(command: string) {
         }
     } else if (root == "images") {
         cmd("Images");
+    } else if (root == "intro") {
+        if (!expectArgs(2)) {
+            parseError();
+            return;
+        }
+        let volume: string | null = args[1];
+        if (volume == "edat") {
+            volume = null;
+        }
+        submitAction = updateIntro(volume);
+        cmd({
+            GetIntro: {
+                id: volume,
+            },
+        });
+    } else if (root == "contents") {
+        if (!expectArgs(2)) {
+            parseError();
+            return;
+        }
+        const section = Number.parseInt(args[1]);
+        if (!isNumber(section)) {
+            parseError();
+            return;
+        }
+        submitAction = updateContents(section);
+        cmd({
+            GetContents: {
+                id: section,
+            },
+        });
     } else {
         parseError();
     }
+}
+
+function updateIntro(id: string | null) {
+    return () => {
+        const elContents = document.getElementById("contents") as HTMLInputElement;
+
+        if (elContents.value.length > 0) {
+            submitAction = updateIntro(id);
+            cmd({
+                SetIntro: {
+                    id,
+                    content: elContents.value,
+                }
+            });
+        }
+    };
+}
+
+function updateContents(id: number) {
+    return () => {
+        const elContents = document.getElementById("contents") as HTMLInputElement;
+
+        if (elContents.value.length > 0) {
+            submitAction = updateContents(id);
+            cmd({
+                SetContents: {
+                    id,
+                    content: elContents.value,
+                }
+            });
+        }
+    };
 }
 
 function newUser() {
@@ -847,6 +932,50 @@ function cmd(command: Cmd) {
         const submitButton = document.getElementById("submit");
         if (submitButton instanceof HTMLButtonElement) {
             submitButton.onclick = submitAction;
+        }
+
+        const elContents = document.getElementById("contents") as HTMLTextAreaElement;
+        if (elContents) {
+            const elProcessing = document.getElementById("processing") as HTMLDivElement;
+            elContents.onpaste = (ev) => {
+                ev.preventDefault();
+                const html = ev.clipboardData?.getData("text/html");
+                const text = ev.clipboardData?.getData("text/plain");
+
+                if (html && html.length > 0) {
+                    const selectionStart = elContents.selectionStart!;
+                    const selectionEnd = elContents.selectionEnd!;
+                    const before = elContents.value.substring(0, selectionStart);
+                    const after = elContents.value.substring(selectionEnd);
+
+                    let output = "";
+                    elProcessing.innerHTML = html;
+                    for (const p of elProcessing.querySelectorAll("p")) {
+                        let text = "";
+                        for (const span of p.children as HTMLCollectionOf<HTMLSpanElement>) {
+                            if (span.style.fontStyle == "italic") {
+                                text += "<i>";
+                            }
+                            text += `${span.innerText}`;
+                            if (span.style.fontStyle == "italic") {
+                                text += "</i>";
+                            }
+                        }
+                        output += text;
+                        output += "\n";
+                    }
+
+                    elContents.value = `${before}${output}${after}`;
+                    elContents.setSelectionRange(selectionStart + html.length, selectionStart + html.length);
+                } else if (text && text.length > 0) {
+                    const selectionStart = elContents.selectionStart!;
+                    const selectionEnd = elContents.selectionEnd!;
+                    const before = elContents.value.substring(0, selectionStart);
+                    const after = elContents.value.substring(selectionEnd);
+                    elContents.value = `${before}${text}${after}`;
+                    elContents.setSelectionRange(selectionStart + text.length, selectionStart + text.length);
+                }
+            }
         }
 
         const elImage = document.getElementById("image") as HTMLImageElement | null;

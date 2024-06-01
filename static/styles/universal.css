@@ -27,9 +27,12 @@ body {
     }
 }
 
+body {
+    margin-bottom: 24px;
+}
+
 utc {
     opacity: 0;
-    
 }
 
 * {

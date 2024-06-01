@@ -3,10 +3,6 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
-main {
-    margin-bottom: 2000px;
-}
-
 .widget {
     margin-top: 24px;
 
@@ -171,6 +167,24 @@ main {
             & .previous-description {
                 color: var(--gray);
             }
+        }
+    }
+}
+
+#intro-widget {
+    & .introduction {
+        background: var(--shadow);
+        border-width: 1px 0;
+        border-color: var(--gray);
+        border-style: solid;
+        padding: 12px 24px;
+        color: var(--content);
+        font: 15px var(--serif);
+        line-height: 22px;
+        /* text-align: justify; */
+        
+        & p + p {
+            margin-top: 12px;
         }
     }
 }

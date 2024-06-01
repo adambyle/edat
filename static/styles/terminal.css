@@ -91,3 +91,11 @@ img {
 #image-feedback p {
     margin-bottom: 0;
 }
+
+#contents {
+    height: 400px;
+}
+
+#processing {
+    display: none;
+}

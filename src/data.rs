@@ -1156,7 +1156,7 @@ pub fn create_id(name: &str) -> String {
     name.replace(' ', "-")
 }
 
-fn process_text(text: &str) -> String {
+pub fn process_text(text: &str) -> String {
     let text = text
         .replace("--", "—")
         .replace("-.", "–")
