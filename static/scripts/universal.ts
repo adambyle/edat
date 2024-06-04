@@ -1,6 +1,12 @@
 // Theme handling.
 if (!localStorage.edatTheme) {
     changeThemeSetting("system");
+} else if (!document.cookie.includes("edat_theme")) {
+    // Force reset theme.
+    const theme = localStorage.edatTheme;
+    document.cookie = `edat_theme=${theme}; Max-Age=31536000`;
+    localStorage.removeItem("edatTheme");
+    changeTheme(theme);
 }
 
 export function changeThemeSetting(themeSetting: string) {
@@ -25,8 +31,7 @@ export function changeTheme(theme: string) {
         return;
     }
     localStorage.edatTheme = theme;
-    const expirationDate = new Date(Date.now() + 100 * 1000 * 60 * 60 * 24 * 365);
-    document.cookie = `edat_theme=${theme}; expires=${expirationDate.toUTCString()};`;
+    document.cookie = `edat_theme=${theme}; Max-Age=31536000`;
 
     if (theme == "dark") {
         document.body.classList.add("dark-theme");

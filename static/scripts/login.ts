@@ -19,7 +19,7 @@ function login() {
         console.log(res.status);
         if (res.status == 200) {
             res.text().then(text => {
-                const expirationDate = new Date(Date.now() + 100 * 1000 * 60 * 60 * 24 * 365);
+                document.cookie = `edat_user=${text}; Max-Age=31536000`
                 window.location.reload();
             });
         } else {

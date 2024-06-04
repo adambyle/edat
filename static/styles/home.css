@@ -48,6 +48,7 @@
         width: 100%;
         overflow-x: scroll;
         scrollbar-width: none;
+        overscroll-behavior-x: contain;
 
         &::-webkit-scrollbar {
             display: none;

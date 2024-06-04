@@ -113,6 +113,13 @@ pub fn setup(headers: &HeaderMap, volumes: Vec<setup::Volume>) -> Markup {
             }
             .widget {
                 span {}
+                button #last-widget {
+                    h3 { "Last read" }
+                    p { "Return to where you left off" }
+                }
+            }
+            .widget {
+                span {}
                 button #conversations-widget {
                     h3 { "Conversations" }
                     p { "See where readers have recently commented" }
@@ -151,6 +158,37 @@ pub mod home {
     use maud::{html, Markup, PreEscaped};
 
     use crate::data;
+
+    pub struct Library {
+        pub volumes: Vec<LibraryVolume>,
+    }
+
+    impl Widget for Library {
+        fn html(&self) -> Markup {
+            html! {
+                h2 { "The library" }
+                @for volume in &self.volumes {
+                    .volume {
+                        h3 { (PreEscaped(&volume.title)) }
+                        @if let Some(subtitle) = &volume.subtitle {
+                            p { (PreEscaped(subtitle)) }
+                        }
+                        p.entry-count { (volume.entry_count) " entries" }
+                    }
+                }
+            }
+        }
+
+        fn id(&self) -> &'static str {
+            "library-widget"
+        }
+    }
+
+    pub struct LibraryVolume {
+        pub title: String,
+        pub subtitle: Option<String>,
+        pub entry_count: usize,
+    }
 
     pub struct RecentWidget {
         pub sections: Vec<RecentSection>,

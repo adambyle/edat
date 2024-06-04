@@ -59,13 +59,7 @@ pub async fn login(
     for user in index.users() {
         if (name == user.first_name().to_lowercase() || &name == user.id()) && user.has_code(&code)
         {
-            let cookie = format!("edat_user={}; Max-Age=31536000", user.id());
-            return (
-                StatusCode::OK,
-                [(header::SET_COOKIE, cookie)],
-                user.id().to_owned(),
-            )
-                .into_response();
+            return (StatusCode::OK, user.id().to_owned()).into_response();
         }
     }
 

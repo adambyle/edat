@@ -27,7 +27,7 @@ async fn main() {
         .route("/", get(routes::home))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("192.168.1.154:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
