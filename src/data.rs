@@ -209,7 +209,15 @@ impl Index {
     }
 
     pub fn volume<'a>(&'a self, id: &str) -> Option<VolumeWrapper> {
-        self.volumes.get(id).map(|v| Wrapper::new(v, id.to_owned()))
+        self.volumes
+            .get(id)
+            .map(|v| Wrapper::new(v, id.to_owned()))
+            .or_else(|| {
+                self.volumes
+                    .iter()
+                    .find(|(_, v)| v.old_ids.contains(&id.to_owned()))
+                    .map(|(k, v)| Wrapper::new(v, k.clone()))
+            })
     }
 
     // pub fn volumes_mut(&mut self) -> impl Iterator<Item = VolumeWrapperMut> {
@@ -246,9 +254,13 @@ impl Index {
             volume_count: 1,
             entries: Vec::new(),
             search_index: search::Index::new(),
+            old_ids: Vec::new(),
         };
 
+        File::create(format!("content/volumes/{id}.intro")).unwrap();
         self.insert_volume(id.clone(), volume, position)?;
+        self.save();
+        
         Ok(id)
     }
 
@@ -308,6 +320,7 @@ impl Index {
         let mut volume = self.volumes.shift_remove_index(index).unwrap().1;
         let new_id = create_id(&new_title);
         volume.title = process_text(&new_title);
+        volume.old_ids.push(id.to_owned());
 
         // Update child entries.
         for entry in &volume.entries {
@@ -343,14 +356,22 @@ impl Index {
         volume.volume_count = volume_count;
     }
 
-    // pub fn entries(&self) -> impl Iterator<Item = EntryWrapper> {
-    //     self.entries
-    //         .iter()
-    //         .map(|(k, e)| Wrapper::new(e, k.to_owned()))
-    // }
+    pub fn entries<'a>(&self) -> impl Iterator<Item = EntryWrapper> {
+        self.entries
+            .iter()
+            .map(|(k, e)| Wrapper::new(e, k.to_owned()))
+    }
 
     pub fn entry<'a>(&'a self, id: &str) -> Option<EntryWrapper> {
-        self.entries.get(id).map(|e| Wrapper::new(e, id.to_owned()))
+        self.entries
+            .get(id)
+            .map(|e| Wrapper::new(e, id.to_owned()))
+            .or_else(|| {
+                self.entries
+                    .iter()
+                    .find(|(_, e)| e.old_ids.contains(&id.to_owned()))
+                    .map(|(k, e)| Wrapper::new(e, k.clone()))
+            })
     }
 
     // pub fn entries_mut(&mut self) -> impl Iterator<Item = EntryWrapperMut> {
@@ -567,8 +588,8 @@ impl Index {
             search_index: search::Index::new(),
         };
 
-        self.insert_section(id, section, position)?;
         File::create(format!("content/sections/{id}.txt")).unwrap();
+        self.insert_section(id, section, position)?;
         self.save();
         Ok(id)
     }
@@ -825,9 +846,9 @@ impl History {
         self.timestamp
     }
 
-    // pub fn ever_finished(&self) -> bool {
-    //     self.ever_finished
-    // }
+    pub fn ever_finished(&self) -> bool {
+        self.ever_finished
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -838,6 +859,7 @@ pub struct Volume {
     content_type: ContentType,
     volume_count: usize,
     entries: Vec<String>,
+    old_ids: Vec<String>,
 
     #[serde(skip)]
     search_index: search::Index,
@@ -1178,7 +1200,7 @@ impl Comment {
 }
 
 pub trait Save {
-    type Id;
+    type Id: Clone;
 
     fn save(&mut self, id: &Self::Id);
 }
@@ -1198,10 +1220,19 @@ impl<'a, T: Save> Wrapper<'a, T> {
     }
 }
 
+impl<'a, T: Save> Clone for Wrapper<'a, T> {
+    fn clone(&self) -> Self {
+        Wrapper {
+            data: self.data,
+            id: self.id.clone(),
+        }
+    }
+}
+
 impl<'a, T: Save> Deref for Wrapper<'a, T> {
     type Target = T;
 
-    fn deref(&self) -> &Self::Target {
+    fn deref(&self) -> &'a Self::Target {
         &self.data
     }
 }

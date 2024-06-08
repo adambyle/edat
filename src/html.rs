@@ -30,6 +30,18 @@ fn universal(
     }
 }
 
+fn navbar() -> Markup {
+    html! {
+        nav #topnav {
+            a href="/" { "HOME" }
+            a href="/library" { "LIBRARY" }
+            a href="/history" { "HISTORY" }
+            a href="/forum" { "FORUM" }
+            a href="/profile" { "PROFILE" }
+        }
+    }
+}
+
 pub struct WidgetOption {
     pub name: String,
     pub description: String,
@@ -80,12 +92,12 @@ pub fn profile(headers: &HeaderMap, data: profile::ProfileData) -> Markup {
                 p { "Only the last two months are shown. Select a section below to return to your place." }
                 #history-preview {
                     @for section in history_preview {
-                        (section.to_html())
+                        (section.html())
                     }
                 }
                 #history-rest {
                     @for section in history_rest {
-                        (section.to_html())
+                        (section.html())
                     }
                 }
             }
@@ -120,17 +132,24 @@ pub mod profile {
     }
 
     impl ViewedSection {
-        pub fn to_html(&self) -> Markup {
-            let progress = (self.progress.0 as f32 / self.progress.1 as f32 * 100.0).round();
+        pub fn html(&self) -> Markup {
+            let progress = if self.progress.0 == 0 {
+                100.0
+            } else {
+                (self.progress.0 as f32 / self.progress.1 as f32 * 100.0).round()
+            };
 
             html! {
                 a.section href={ "/section/" (self.id) "?line=" (self.progress.0) } {
                     h3 { (PreEscaped(&self.entry)) }
                     p.description {
-                        (self.description)
+                        (PreEscaped(&self.description))
                         span.index { (self.index.0 + 1) "/" (self.index.1) }
                     }
-                    p.info { span.progress { (progress) "% complete" } span.lastread { "Last read " utc { (self.timestamp) } } }
+                    p.info {
+                        span.progress { (progress) "% complete" }
+                        span.lastread { "Last read " utc { (self.timestamp) } }
+                    }
                 }
             }
         }
@@ -204,8 +223,8 @@ pub fn widgets(selected: &[String]) -> Vec<WidgetOption> {
             id: "conversations-widget".to_owned(),
         },
         W {
-            name: "Random entry".to_owned(),
-            description: "Reading recommendation".to_owned(),
+            name: "Reading recommendation".to_owned(),
+            description: "Based on what you have left to read".to_owned(),
             order: order(&"random-widget"),
             id: "random-widget".to_owned(),
         },
@@ -272,14 +291,150 @@ pub mod home {
 
     use crate::data;
 
+    pub enum RandomWidget {
+        Unstarted(RandomEntry),
+        Unfinished {
+            entry: RandomEntry,
+            section_id: u32,
+            section_index: usize,
+            progress: usize,
+        },
+        ReadAgain {
+            entry: RandomEntry,
+            last_read: i64,
+        },
+    }
+
+    impl Widget for RandomWidget {
+        fn html(&self) -> Markup {
+            let entry_html = |entry: &RandomEntry, url: String| {
+                let volume = html! {
+                    @if let Some(part) = entry.volume_part {
+                        (PreEscaped(&entry.volume))
+                        " vol. "
+                        (data::roman_numeral(part + 1))
+                    } @else {
+                        (PreEscaped(&entry.volume))
+                    }
+                };
+                html! {
+                    a.entry href=(url) {
+                        p.volume { (volume) }
+                        h3 { (PreEscaped(&entry.title)) }
+                        p.summary { (PreEscaped(&entry.summary)) }
+                    }
+                }
+            };
+
+            let entry_wrapper = match self {
+                Self::Unstarted(entry) => {
+                    let url = format!("/entry/{}", &entry.id);
+                    html! {
+                        (entry_html(entry, url))
+                        p.label { "You haven’t started this entry" }
+                    }
+                }
+                Self::Unfinished {
+                    entry,
+                    section_id,
+                    section_index,
+                    progress,
+                } => {
+                    let url = format!("/section/{}?line={}", section_id, progress);
+                    html! {
+                        (entry_html(entry, url))
+                        @if *progress == 0 {
+                            p.label { "You need to start section " (section_index + 1) }
+                        } @else {
+                            p.label { "You’re partway through section " (section_index + 1) }
+                        }
+                    }
+                }
+                Self::ReadAgain { entry, last_read } => {
+                    let url = format!("/entry/{}", &entry.id);
+                    html! {
+                        (entry_html(entry, url))
+                        p.label { "You haven’t read this since " utc { (last_read) } }
+                    }
+                }
+            };
+
+            html! {
+                h2 { "Reading recommendation" }
+                (entry_wrapper)
+            }
+        }
+
+        fn id(&self) -> &'static str {
+            "random-widget"
+        }
+    }
+
+    pub struct RandomEntry {
+        pub id: String,
+        pub volume: String,
+        pub volume_part: Option<usize>,
+        pub title: String,
+        pub summary: String,
+    }
+
+    pub struct LastWidget {
+        pub section: Option<LastSection>,
+    }
+
+    impl Widget for LastWidget {
+        fn html(&self) -> Markup {
+            html! {
+                h2 { "Last read" }
+                @if let Some(ref section) = self.section {
+                    @let progress =
+                        (section.progress.0 as f32 / section.progress.1 as f32 * 100.0)
+                        .round();
+                    a.see-profile href="/profile" {
+                        "See reading history in your profile"
+                    }
+                    a.last-section href={ "/section/" (section.id) "?line=" (section.progress.0) } {
+                        h3 { (PreEscaped(&section.entry)) }
+                        p.summary {
+                            (PreEscaped(&section.summary))
+                            span.index { (section.index.0 + 1) "/" (section.index.1) }
+                        }
+                        p.info {
+                            span.progress { (progress) "% complete" }
+                            span.lastread { "Last read " utc { (section.timestamp) } }
+                        }
+                    }
+                } @else {
+                    .last-section {
+                        p { "You have no unfinished reading to pick up on." }
+                    }
+                }
+            }
+        }
+
+        fn id(&self) -> &'static str {
+            "last-widget"
+        }
+    }
+
+    pub struct LastSection {
+        pub id: u32,
+        pub summary: String,
+        pub timestamp: i64,
+        pub entry: String,
+        pub index: (usize, usize),
+        pub progress: (usize, usize),
+    }
+
     pub struct LibraryWidget {
         pub volumes: Vec<LibraryVolume>,
+        pub title: String,
     }
 
     impl Widget for LibraryWidget {
         fn html(&self) -> Markup {
             html! {
-                h2 { "The library" }
+                h2 { (self.title) }
                 .volumes {
                     @for volume in &self.volumes {
                         a.volume href={ "/volume/" (volume.id) } {
@@ -289,6 +444,7 @@ pub mod home {
                             }
                         }
                     }
+                    a.volume-link href="/library" { "Search the full library" }
                 }
             }
         }
@@ -469,12 +625,7 @@ pub fn home(
     let body = html! {
         h1 #title { span { "Every Day’s a Thursday" } }
         main {
-            nav #topnav {
-                a href="/history" { "HISTORY" }
-                a href="/library" { "LIBRARY" }
-                a href="/index" { "INDEX" }
-                a href="/profile" { "PROFILE" }
-            }
+            (navbar())
             @for widget in &widgets {
                 .widget #(widget.id()) {
                     (widget.html())

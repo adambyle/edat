@@ -816,7 +816,9 @@ function parseVolumePosition(positionArgs: string[]): [Position<null, string> | 
     }
 }
 
-function parseEntryPosition(positionArgs: string[]): [Position<[string, number], string> | null, number] {
+function parseEntryPosition(
+    positionArgs: string[]
+): [Position<[string, number], string> | null, number] {
     if (positionArgs.length < 2) {
         return [null, 0];
     }

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::{self, read_to_string};
 use std::io::{self, Read, Write};
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::{fs::File, path::Path};
 
@@ -345,13 +346,170 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
             })
             .collect();
 
-        html::home::LibraryWidget { volumes }
+        html::home::LibraryWidget {
+            volumes,
+            title: "The library".to_owned(),
+        }
+    };
+
+    let extras_widget = || {
+        let volumes = index
+            .volumes()
+            .filter(|v| {
+                v.content_type() != data::ContentType::Journal
+                    && v.content_type() != data::ContentType::Featured
+            })
+            .map(|v| html::home::LibraryVolume {
+                title: v.title().to_owned(),
+                id: v.id().clone(),
+                subtitle: v.subtitle().map(|s| s.to_owned()),
+                entry_count: v.entry_ids().len(),
+            })
+            .collect();
+
+        html::home::LibraryWidget {
+            volumes,
+            title: "Extras".to_owned(),
+        }
+    };
+
+    let last_widget = || {
+        let mut history: Vec<_> = history.iter().collect();
+        history.sort_by(data::history_sorter);
+        let section = history.iter().find(|h| h.progress() > 0).and_then(|h| {
+            let section = index.section(h.section_id());
+            section.map(|s| {
+                let entry = index.entry(s.parent_entry_id()).unwrap();
+                let index = entry
+                    .section_ids()
+                    .iter()
+                    .position(|id| id == s.id())
+                    .expect(&format!(
+                        "section {} not found in parent entry {}",
+                        s.id(),
+                        entry.id()
+                    ));
+                html::home::LastSection {
+                    entry: entry.title().to_owned(),
+                    summary: s.summary().to_owned(),
+                    timestamp: h.timestamp(),
+                    id: *s.id(),
+                    index: (index, entry.section_ids().len()),
+                    progress: (h.progress(), s.lines()),
+                }
+            })
+        });
+
+        html::home::LastWidget { section }
+    };
+
+    let random_widget = || {
+        // TODO make random.
+
+        let wrap_entry = |entry: &data::EntryWrapper| {
+            let volume = index.volume(entry.parent_volume_id()).unwrap();
+            let volume_part = (volume.volume_count() > 1).then_some(entry.parent_volume_index());
+
+            html::home::RandomEntry {
+                id: entry.id().clone(),
+                summary: entry.summary().to_owned(),
+                title: entry.title().to_owned(),
+                volume: volume.title().to_owned(),
+                volume_part,
+            }
+        };
+
+        let unstarted_entries: Vec<_> = index
+            .entries()
+            .filter(|e| {
+                // Entry must have complete sections.
+                let has_complete_section = e
+                    .section_ids()
+                    .iter()
+                    .any(|&s| index.section(s).unwrap().status() == data::ContentStatus::Complete);
+                if !has_complete_section {
+                    return false;
+                }
+
+                // Filter for entries of which the user has not started a single section.
+                !e.section_ids()
+                    .iter()
+                    .any(|&s| history.iter().any(|h| h.section_id() == s))
+            })
+            .collect();
+        if let Some(entry) = unstarted_entries.last() {
+            return html::home::RandomWidget::Unstarted(wrap_entry(&entry));
+        }
+
+        let unfinished_entries: Vec<_> = index
+            .entries()
+            .by_ref()
+            .filter_map(|e| {
+                // Filter for entries of which there exists a section the user has not finished.
+                // Collect the history entry when that section is found.
+                e.section_ids()
+                    .iter()
+                    .map(|s| *s)
+                    .enumerate()
+                    .filter_map(|(i, s)| {
+                        // Get the history entry for the first unfinished section
+                        // or if the section doesn't exist.
+                        let history_entry = history.iter().find(|h| h.section_id() == s);
+                        let progress = match history_entry {
+                            Some(h) => (!h.ever_finished()).then_some(h.progress()),
+                            None => Some(0),
+                        };
+
+                        progress.map(|p| (e.clone(), i, s, p))
+                    })
+                    .next()
+            })
+            .collect();
+        if let Some(entry) = unfinished_entries.last() {
+            return html::home::RandomWidget::Unfinished {
+                entry: wrap_entry(&entry.0),
+                section_id: entry.2,
+                section_index: entry.1,
+                progress: entry.3,
+            };
+        }
+
+        let read_again = index
+            .entries()
+            .filter_map(|e| {
+                // Entry must have complete sections.
+                let has_complete_section = e
+                    .section_ids()
+                    .iter()
+                    .any(|&s| index.section(s).unwrap().status() == data::ContentStatus::Complete);
+
+                has_complete_section.then(|| {
+                    let last_read = history
+                        .iter()
+                        .filter(|h| e.section_ids().contains(&h.section_id()))
+                        .map(|h| h.timestamp())
+                        .max()
+                        .expect(
+                            "this point should have been reached only if all sections have been read",
+                        );
+                    (e, last_read)
+                })
+            })
+            .max_by_key(|&(_, last_read)| last_read)
+            .expect("no entries");
+        html::home::RandomWidget::ReadAgain {
+            entry: wrap_entry(&read_again.0),
+            last_read: read_again.1,
+        }
     };
 
     for widget in user.widgets() {
         let widget: Box<dyn Widget> = match widget.as_ref() {
             "recent-widget" => Box::new(recent_widget()),
             "library-widget" => Box::new(library_widget()),
+            "extras-widget" => Box::new(extras_widget()),
+            "last-widget" => Box::new(last_widget()),
+            "random-widget" => Box::new(random_widget()),
             _ => continue,
         };
         widgets.push(widget);

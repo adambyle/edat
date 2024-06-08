@@ -83,16 +83,6 @@ impl Index {
     pub fn from_bytes(bytes: &[u8]) -> Self {
         let mut sections = Vec::new();
 
-        fn next_n_bytes<'a>(iter: &mut impl Iterator<Item = &'a u8>, n: usize) -> Option<Vec<u8>> {
-            let mut n_bytes = Vec::with_capacity(n);
-
-            for _ in 0..n {
-                n_bytes.push(*iter.next()?);
-            }
-
-            Some(n_bytes)
-        }
-
         let mut bytes = bytes.iter();
         let mut current_section = None;
         while let Some(&c) = bytes.next() {
@@ -136,13 +126,15 @@ impl Index {
                 let word = String::from_utf8(word_bytes).expect("word is not valid utf-8");
 
                 // Collect instances.
-                let span_count_bytes =
-                    next_n_bytes(&mut bytes, 2).expect("missing span count bytes");
-                let span_count = u16::from_le_bytes(span_count_bytes.try_into().unwrap()) as usize;
+                let span_count_bytes: Vec<_> = bytes.by_ref().take(2).map(|b| *b).collect();
+                let span_count_bytes = span_count_bytes
+                    .try_into()
+                    .expect("invalid span count byets");
+                let span_count = u16::from_le_bytes(span_count_bytes) as usize;
 
                 let mut spans = Vec::with_capacity(span_count);
                 for _ in 0..span_count {
-                    let span_bytes = next_n_bytes(&mut bytes, 4).expect("expected span bytes");
+                    let span_bytes: Vec<_> = bytes.by_ref().take(4).map(|b| *b).collect();
                     let mut offset_bytes = [0; 8];
                     offset_bytes[0..3].clone_from_slice(&span_bytes[0..3]);
                     let offset = usize::from_le_bytes(offset_bytes);
