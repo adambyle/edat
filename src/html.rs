@@ -16,14 +16,123 @@ fn universal(
 
     html! {
         (DOCTYPE)
-        head {
-            title { "Every Day’s a Thursday | " (title) }
-            meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
-            link type="text/css" rel="stylesheet" href={"style/" (resource) ".css"};
+        html lang="en-us" {
+            head {
+                title { "Every Day’s a Thursday | " (title) }
+                meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
+                link type="text/css" rel="stylesheet" href={"style/" (resource) ".css"};
+            }
+            body class=[dark_theme] {
+                (body)
+                script type="module" src={"script/" (resource) ".js"} {};
+            }
         }
-        body class=[dark_theme] {
-            (body)
-            script type="module" src={"script/" (resource) ".js"} {};
+    }
+}
+
+pub struct WidgetOption {
+    pub name: String,
+    pub description: String,
+    pub order: Option<usize>,
+    pub id: String,
+}
+
+pub fn widget_options(widgets: Vec<WidgetOption>) -> Markup {
+    html! {
+        @for widget in widgets {
+            .widget {
+                @if let Some(order) = widget.order {
+                    span style="opacity: 1" { "#" (order + 1) }
+                } @else {
+                    span {}
+                }
+                button #(widget.id) .selected[widget.order.is_some()] {
+                    h3 { (PreEscaped(&widget.name)) }
+                    p { (PreEscaped(&widget.description)) }
+                }
+            }
+        }
+    }
+}
+
+pub fn profile(headers: &HeaderMap, data: profile::ProfileData) -> Markup {
+    let widgets = widgets(&data.widgets);
+
+    let history_preview_length = 3;
+    let history_preview = data.sections.iter().take(history_preview_length);
+    let history_rest = data.sections.iter().skip(history_preview_length);
+
+    let profile = html! {
+        h1 { a href="/" { "Every Day’s a Thursday" } }
+        #homepage.module {
+            h2 { "Homepage settings"}
+            .wrapper {
+                p { "Choose which widgets to include on your homepage. Changes are saved automatically. The order you select them in will determine the order they appear on your homepage." }
+                #widgets {
+                    (widget_options(widgets))
+                }
+            }
+            p.expand #homepage-expand { "Show options" }
+        }
+        #history.module {
+            h2 { "Reading history" }
+            .wrapper {
+                p { "Only the last two months are shown. Select a section below to return to your place." }
+                #history-preview {
+                    @for section in history_preview {
+                        (section.to_html())
+                    }
+                }
+                #history-rest {
+                    @for section in history_rest {
+                        (section.to_html())
+                    }
+                }
+            }
+            p.expand #history-expand { "Show more" }
+        }
+        #contributions.module {
+            h2 { "Contributions" }
+            p { "The ability to write featured content is coming soon, including the Perspectives feature
+                and Personal Journals. Your hub for writing and editing will be right here." }
+        }
+        button #home { "Go back" }
+    };
+
+    universal(profile, headers, "profile", "Profile")
+}
+
+pub mod profile {
+    use maud::{html, Markup, PreEscaped};
+
+    pub struct ProfileData {
+        pub widgets: Vec<String>,
+        pub sections: Vec<ViewedSection>,
+    }
+
+    pub struct ViewedSection {
+        pub id: u32,
+        pub description: String,
+        pub timestamp: i64,
+        pub entry: String,
+        pub index: (usize, usize),
+        pub progress: (usize, usize),
+    }
+
+    impl ViewedSection {
+        pub fn to_html(&self) -> Markup {
+            let progress = (self.progress.0 as f32 / self.progress.1 as f32 * 100.0).round();
+
+            html! {
+                a.section href={ "/section/" (self.id) "?line=" (self.progress.0) } {
+                    h3 { (PreEscaped(&self.entry)) }
+                    p.description {
+                        (self.description)
+                        span.index { (self.index.0 + 1) "/" (self.index.1) }
+                    }
+                    p.info { span.progress { (progress) "% complete" } span.lastread { "Last read " utc { (self.timestamp) } } }
+                }
+            }
         }
     }
 }
@@ -64,7 +173,60 @@ pub mod setup {
     }
 }
 
+pub fn widgets(selected: &[String]) -> Vec<WidgetOption> {
+    use WidgetOption as W;
+
+    let order = |id| selected.iter().position(|s| s == id);
+
+    vec![
+        W {
+            name: "Recent additions".to_owned(),
+            description: "Carousel of the latest sections".to_owned(),
+            order: order(&"recent-widget"),
+            id: "recent-widget".to_owned(),
+        },
+        W {
+            name: "The library".to_owned(),
+            description: "Quick access to the main journal’s four books".to_owned(),
+            order: order(&"library-widget"),
+            id: "library-widget".to_owned(),
+        },
+        W {
+            name: "Last read".to_owned(),
+            description: "Return to where you left off".to_owned(),
+            order: order(&"last-widget"),
+            id: "last-widget".to_owned(),
+        },
+        W {
+            name: "Conversations".to_owned(),
+            description: "See where readers have recently commented".to_owned(),
+            order: order(&"conversations-widget"),
+            id: "conversations-widget".to_owned(),
+        },
+        W {
+            name: "Random entry".to_owned(),
+            description: "Reading recommendation".to_owned(),
+            order: order(&"random-widget"),
+            id: "random-widget".to_owned(),
+        },
+        W {
+            name: "Extras".to_owned(),
+            description: "Quick access to old journals, fiction, and more".to_owned(),
+            order: order(&"extras-widget"),
+            id: "extras-widget".to_owned(),
+        },
+        W {
+            name: "Search bar".to_owned(),
+            description: "Website search features".to_owned(),
+            order: order(&"search-widget"),
+            id: "search-widget".to_owned(),
+        },
+    ]
+}
+
 pub fn setup(headers: &HeaderMap, volumes: Vec<setup::Volume>) -> Markup {
+    let widgets = widgets(&[]);
+
     let setup = html! {
         #welcome {
             h1 { "Every Day’s a Thursday" }
@@ -97,58 +259,9 @@ pub fn setup(headers: &HeaderMap, volumes: Vec<setup::Volume>) -> Markup {
             p { b { "Your homepage is customizable to serve the most relevant content." } }
             p { "Select the elements below in the order (top to bottom) you would like them to appear on your homepage. You can include or omit whichever you want." }
             p { "Common resources, like the library, the index, and the addition history, will always have quick links at the top, but you can get more detailed information by selecting their widgets below." }
-            .widget {
-                span {}
-                button #recent-widget {
-                    h3 { "Recent additions" }
-                    p { "Carousel of the latest sections" }
-                }
-            }
-            .widget {
-                span {}
-                button #library-widget {
-                    h3 { "The library" }
-                    p { "Quick access to the main journal’s four books" }
-                }
-            }
-            .widget {
-                span {}
-                button #last-widget {
-                    h3 { "Last read" }
-                    p { "Return to where you left off" }
-                }
-            }
-            .widget {
-                span {}
-                button #conversations-widget {
-                    h3 { "Conversations" }
-                    p { "See where readers have recently commented" }
-                }
-            }
-            .widget {
-                span {}
-                button #random-widget {
-                    h3 { "Random entry" }
-                    p { "Reading recommendation" }
-                }
-            }
-            .widget {
-                span {}
-                button #extras-widget {
-                    h3 { "Extras" }
-                    p { "Quick access to old journals, fiction, and more" }
-                }
-            }
-            .widget {
-                span {}
-                button #search-widget {
-                    h3 { "Search bar" }
-                    p { "Website search feature" }
-                }
-            }
+            (widget_options(widgets))
             p { "You can always change these settings later." }
             button #done { "Finished" }
-
         }
     };
     universal(setup, headers, "setup", "Setup account")
@@ -159,21 +272,22 @@ pub mod home {
 
     use crate::data;
 
-    pub struct Library {
+    pub struct LibraryWidget {
         pub volumes: Vec<LibraryVolume>,
     }
 
-    impl Widget for Library {
+    impl Widget for LibraryWidget {
         fn html(&self) -> Markup {
             html! {
                 h2 { "The library" }
-                @for volume in &self.volumes {
-                    .volume {
-                        h3 { (PreEscaped(&volume.title)) }
-                        @if let Some(subtitle) = &volume.subtitle {
-                            p { (PreEscaped(subtitle)) }
+                .volumes {
+                    @for volume in &self.volumes {
+                        a.volume href={ "/volume/" (volume.id) } {
+                            h3 { (PreEscaped(&volume.title)) }
+                            @if let Some(subtitle) = &volume.subtitle {
+                                p.subtitle { (PreEscaped(subtitle)) }
+                            }
                         }
-                        p.entry-count { (volume.entry_count) " entries" }
                     }
                 }
             }
@@ -186,6 +300,7 @@ pub mod home {
 
     pub struct LibraryVolume {
         pub title: String,
+        pub id: String,
         pub subtitle: Option<String>,
         pub entry_count: usize,
     }
@@ -261,7 +376,10 @@ pub mod home {
                     @if let Some(ref time) = section.read {
                         span.read { "You read on " utc { (time) } }
                     } @else {
-                        span.unread { "Unread" }
+                        span.unread-wrapper {
+                            span.unread { "Unread" }
+                            button.skip edat-section=(section.id) { "I’ve already read this" }
+                        }
                     }
                     @if let (true, Some((id, description))) = (show_previous, &section.previous) {
                         @let previous = html! {
@@ -343,7 +461,11 @@ pub mod home {
     }
 }
 
-pub fn home(headers: &HeaderMap, widgets: Vec<Box<dyn home::Widget>>, introduction: Vec<&str>) -> maud::Markup {
+pub fn home(
+    headers: &HeaderMap,
+    widgets: Vec<Box<dyn home::Widget>>,
+    introduction: Vec<&str>,
+) -> maud::Markup {
     let body = html! {
         h1 #title { span { "Every Day’s a Thursday" } }
         main {
@@ -362,7 +484,7 @@ pub fn home(headers: &HeaderMap, widgets: Vec<Box<dyn home::Widget>>, introducti
                 .widget #empty-widget {
                     h2 { "Customize your homepage" }
                     p { "You haven’t added any elements to your homepage yet, like quick access to recent entries or library shortcuts, but you can do so in your settings." }
-                    a href="/me" { "Go to settings" }
+                    a href="/profile" { "Go to settings" }
                 }
             }
             .widget #intro-widget {
@@ -709,11 +831,7 @@ pub mod terminal {
                 description,
                 summary,
                 ..
-            }) => (
-                heading.as_ref(),
-                description.as_ref(),
-                summary.as_ref(),
-            ),
+            }) => (heading.as_ref(), description.as_ref(), summary.as_ref()),
             None => ("", "", ""),
         };
         html! {

@@ -911,7 +911,13 @@ function isNumber(n: number): boolean {
 }
 
 function createId(name: string) {
-    return name.trim().toLowerCase().replace(" ", "-");
+    return name
+        .trim()
+        .toLowerCase()
+        .replaceAll("<i>", "")
+        .replaceAll("&", "and")
+        .replaceAll("</i>", "")
+        .replaceAll(" ", "-");
 }
 
 function parseError() {

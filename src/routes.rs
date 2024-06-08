@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::{fs::File, path::Path};
 
 use axum::body::Bytes;
-use axum::extract::{Path as ReqPath, State};
+use axum::extract::{Path as ReqPath, Query, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -66,6 +66,52 @@ pub async fn login(
     StatusCode::UNAUTHORIZED.into_response()
 }
 
+pub async fn profile(headers: HeaderMap, State(state): State<AppState>) -> impl IntoResponse {
+    let index = state.index.lock().unwrap();
+    let user = match login_check(&headers, &index) {
+        Ok(user) => user,
+        Err(html) => return html,
+    };
+
+    let history = user.history().unwrap();
+    let two_months_ago = Utc::now().timestamp() - 60 * 60 * 24 * 60;
+    let mut history: Vec<_> = history.iter().collect();
+    history.sort_by(data::history_sorter);
+    let sections = history
+        .iter()
+        .filter(|h| h.timestamp() >= two_months_ago)
+        .filter_map(|h| {
+            let section = index.section(h.section_id());
+            section.map(|s| {
+                let entry = index.entry(s.parent_entry_id()).unwrap();
+                let index = entry
+                    .section_ids()
+                    .iter()
+                    .position(|id| id == s.id())
+                    .expect(&format!(
+                        "section {} not found in parent entry {}",
+                        s.id(),
+                        entry.id()
+                    ));
+                html::profile::ViewedSection {
+                    entry: entry.title().to_owned(),
+                    description: s.description().to_owned(),
+                    timestamp: h.timestamp(),
+                    id: *s.id(),
+                    index: (index, entry.section_ids().len()),
+                    progress: (h.progress(), s.lines()),
+                }
+            })
+        })
+        .collect();
+
+    let profile_data = html::profile::ProfileData {
+        widgets: user.widgets().to_owned(),
+        sections,
+    };
+    html::profile(&headers, profile_data)
+}
+
 pub async fn archive() -> impl IntoResponse {
     let now = Utc::now();
     let archive_path = format!("edat-{}-{}-{}.zip", now.year(), now.month(), now.day());
@@ -102,6 +148,41 @@ pub struct RegisterBody {
     widgets: Vec<String>,
 }
 
+pub async fn widgets(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(widgets): Json<Vec<String>>,
+) -> StatusCode {
+    let mut index = state.index.lock().unwrap();
+    let user = get_cookie(&headers, "edat_user").unwrap();
+    let mut user = index.user_mut(user).unwrap();
+
+    user.set_widgets(widgets);
+
+    StatusCode::OK
+}
+
+#[derive(Deserialize)]
+pub struct ReadQuery {
+    progress: Option<usize>,
+    finished: Option<bool>,
+}
+
+pub async fn read(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    ReqPath(id): ReqPath<u32>,
+    Query(options): Query<ReadQuery>,
+) -> StatusCode {
+    let mut index = state.index.lock().unwrap();
+    let user = get_cookie(&headers, "edat_user").unwrap();
+    let mut user = index.user_mut(user).unwrap();
+
+    user.read_section(id, options.progress, options.finished.unwrap_or(false));
+
+    StatusCode::OK
+}
+
 pub async fn register(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -131,7 +212,7 @@ pub async fn register(
         user.empty_history();
     }
     for section in sections {
-        user.read_section(section, 0, true);
+        user.read_section(section, None, true);
     }
     user.set_widgets(body.widgets);
 }
@@ -252,9 +333,25 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
         }
     };
 
+    let library_widget = || {
+        let volumes = index
+            .volumes()
+            .filter(|v| v.content_type() == data::ContentType::Journal)
+            .map(|v| html::home::LibraryVolume {
+                title: v.title().to_owned(),
+                id: v.id().clone(),
+                subtitle: v.subtitle().map(|s| s.to_owned()),
+                entry_count: v.entry_ids().len(),
+            })
+            .collect();
+
+        html::home::LibraryWidget { volumes }
+    };
+
     for widget in user.widgets() {
         let widget: Box<dyn Widget> = match widget.as_ref() {
             "recent-widget" => Box::new(recent_widget()),
+            "library-widget" => Box::new(library_widget()),
             _ => continue,
         };
         widgets.push(widget);
@@ -798,11 +895,17 @@ pub async fn cmd(
             id,
             content: contents,
         } => {
-            let section = index.section(id);
-            or_terminal_error(section, "section", &id)?;
+            // Check section exists.
+            let section = index.section_mut(id);
+            let section = or_terminal_error(section, "section", &id)?;
+
             let contents = data::process_text(&contents);
             let mut contents_file = File::create(format!("content/sections/{}.txt", id)).unwrap();
             contents_file.write_all(contents.as_bytes()).unwrap();
+
+            // Force a save.
+            drop(section);
+
             terminal::contents(id, contents)
         }
         B::SetEntry {
@@ -825,17 +928,26 @@ pub async fn cmd(
             id,
             content: contents,
         } => {
-            let filename = match id {
-                None => "content/edat.intro".to_owned(),
+            let (filename, volume) = match id {
+                None => ("content/edat.intro".to_owned(), None),
                 Some(ref id) => {
-                    let volume = index.volume(id);
-                    or_terminal_error(volume, "volume", id)?;
-                    format!("content/volumes/{id}.intro")
+                    // Verify volume exists.
+                    let volume = index.volume_mut(id);
+                    let volume = or_terminal_error(volume, "volume", id)?;
+
+                    (format!("content/volumes/{id}.intro"), Some(volume))
                 }
             };
             let contents = data::process_text(&contents);
             let mut intro_file = File::create(filename).unwrap();
             intro_file.write_all(contents.as_bytes()).unwrap();
+
+            // Force a save.
+            if let Some(volume) = volume {
+                // Force save.
+                drop(volume);
+            }
+
             terminal::contents(id.unwrap_or("edat".to_owned()), contents)
         }
         B::SetNewEntry {
@@ -925,6 +1037,7 @@ pub async fn cmd(
                 let mut volume = or_terminal_error(volume, "volume", &id)?;
                 volume.set_subtitle(subtitle);
             }
+
             let volume = index.volume(&id).unwrap();
             terminal::volume(volume_info(&index, volume))
         }

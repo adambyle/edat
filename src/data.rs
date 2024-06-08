@@ -1,13 +1,16 @@
 use std::{
+    cmp::Ordering,
     collections::HashMap,
-    fs::{remove_file, File},
+    fs::{self, File},
     ops::Deref,
 };
 
 use chrono::{Datelike, NaiveDate, Utc};
 use indexmap::IndexMap;
 use regex::Regex;
-use serde::{Deserialize, Serialize};
+use serde::{self, Deserialize, Serialize};
+
+use crate::search;
 
 #[derive(Serialize, Deserialize)]
 struct IndexFile {
@@ -30,7 +33,6 @@ pub enum InvalidReference {
     Section(u32),
 }
 
-#[derive(Clone)]
 pub struct Index {
     users: HashMap<String, User>,
     volumes: IndexMap<String, Volume>,
@@ -60,7 +62,10 @@ impl Index {
             .into_iter()
             .map(|v| {
                 let volume = File::open(format!("content/volumes/{v}.json")).unwrap();
-                let volume = serde_json::from_reader(volume).unwrap();
+                let mut volume: Volume = serde_json::from_reader(volume).unwrap();
+                volume.search_index = search::Index::from_bytes(
+                    &fs::read(format!("content/volumes/{v}.index")).unwrap(),
+                );
                 (v, volume)
             })
             .collect();
@@ -71,7 +76,10 @@ impl Index {
             .flatten()
             .map(|e| {
                 let entry = File::open(format!("content/entries/{e}.json")).unwrap();
-                let entry = serde_json::from_reader(entry).unwrap();
+                let mut entry: Entry = serde_json::from_reader(entry).unwrap();
+                entry.search_index = search::Index::from_bytes(
+                    &fs::read(format!("content/entries/{e}.index")).unwrap(),
+                );
                 (e.clone(), entry)
             })
             .collect();
@@ -82,7 +90,10 @@ impl Index {
             .flatten()
             .map(|&s| {
                 let section = File::open(format!("content/sections/{s}.json")).unwrap();
-                let section = serde_json::from_reader(section).unwrap();
+                let mut section: Section = serde_json::from_reader(section).unwrap();
+                section.search_index = search::Index::from_bytes(
+                    &fs::read(format!("content/sections/{s}.index")).unwrap(),
+                );
                 (s, section)
             })
             .collect();
@@ -146,8 +157,6 @@ impl Index {
         first_name: String,
         last_name: String,
     ) -> Option<String> {
-        let _ = remove_file(format!("users/{id}.json")).unwrap();
-
         let mut user = self.users.remove(id)?;
         let new_id = format!("{}{}", &first_name, &last_name);
         user.first_name = first_name;
@@ -165,6 +174,11 @@ impl Index {
                 entry.author = new_id.clone();
             }
         }
+
+        let _ = fs::remove_file(format!("users/{id}.json"));
+
+        // Force a save.
+        drop(self.user_mut(&new_id));
 
         Some(new_id)
     }
@@ -231,6 +245,7 @@ impl Index {
             content_type: ContentType::Journal,
             volume_count: 1,
             entries: Vec::new(),
+            search_index: search::Index::new(),
         };
 
         self.insert_volume(id.clone(), volume, position)?;
@@ -284,9 +299,6 @@ impl Index {
         id: &str,
         new_title: String,
     ) -> Result<String, InvalidReference> {
-        let _ = remove_file(format!("content/volumes/{id}.json")).unwrap();
-        let _ = remove_file(format!("content/volumes/{id}.intro")).unwrap();
-
         // Rename and re-id volume.
         let index = self
             .volumes
@@ -304,8 +316,19 @@ impl Index {
         }
 
         self.volumes.shift_insert(index, new_id.clone(), volume);
-        File::create(format!("content/volumes/{id}.intro")).unwrap();
+
+        let _ = fs::remove_file(format!("content/volumes/{id}.index"));
+        let _ = fs::remove_file(format!("content/volumes/{id}.json"));
+
+        // Force a save.
+        drop(self.entry_mut(&new_id));
+        fs::rename(
+            format!("content/volumes/{id}.intro"),
+            format!("content/volumes/{new_id}.intro"),
+        )
+        .unwrap();
         self.save();
+
         Ok(new_id)
     }
 
@@ -374,6 +397,7 @@ impl Index {
             description: process_text(&description),
             summary: process_text(&summary),
             sections: Vec::new(),
+            search_index: search::Index::new(),
         };
 
         self.insert_entry(id.clone(), entry, position)?;
@@ -405,8 +429,6 @@ impl Index {
         id: &str,
         new_title: String,
     ) -> Result<String, InvalidReference> {
-        let _ = remove_file(format!("content/entries/{id}.json"));
-
         // Rename and re-id entry.
         let mut entry = self
             .entries
@@ -423,6 +445,13 @@ impl Index {
         }
 
         self.entries.insert(new_id.clone(), entry);
+
+        let _ = fs::remove_file(format!("content/entries/{id}.index"));
+        let _ = fs::remove_file(format!("content/entries/{id}.json"));
+
+        // Force a save.
+        drop(self.entry_mut(&id));
+
         Ok(new_id)
     }
 
@@ -534,6 +563,8 @@ impl Index {
             comments: Vec::new(),
             perspectives: Vec::new(),
             length: 0,
+            lines: 0,
+            search_index: search::Index::new(),
         };
 
         self.insert_section(id, section, position)?;
@@ -614,7 +645,7 @@ impl Index {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct User {
     first_name: String,
     last_name: String,
@@ -664,12 +695,7 @@ impl User {
         self.history.as_ref().map(|h| h.as_ref())
     }
 
-    pub fn read_section(
-        &mut self,
-        section: u32,
-        progress: usize,
-        finished: bool,
-    ) {
+    pub fn read_section(&mut self, section: u32, progress: Option<usize>, finished: bool) {
         let history = self.init_history();
 
         // Update the timestamp on a section if it is already present
@@ -677,13 +703,15 @@ impl User {
         match history.iter_mut().find(|h| h.section == section) {
             Some(section) => {
                 section.ever_finished |= finished;
-                section.progress = progress;
+                if let Some(progress) = progress {
+                    section.progress = progress;
+                }
                 section.timestamp = Utc::now().timestamp();
             }
             None => {
                 history.push(History {
                     section,
-                    progress,
+                    progress: progress.unwrap_or(0),
                     timestamp: Utc::now().timestamp(),
                     ever_finished: finished,
                 });
@@ -761,7 +789,7 @@ impl User {
 impl Save for User {
     type Id = String;
 
-    fn save(&self, id: &Self::Id) {
+    fn save(&mut self, id: &Self::Id) {
         let user = File::create(format!("users/{id}.json")).unwrap();
         serde_json::to_writer_pretty(user, self).unwrap();
     }
@@ -776,7 +804,7 @@ pub enum UserPrivilege {
     Reader,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct History {
     section: u32,
     progress: usize,
@@ -789,9 +817,9 @@ impl History {
         self.section
     }
 
-    // pub fn progress(&self) -> usize {
-    //     self.progress
-    // }
+    pub fn progress(&self) -> usize {
+        self.progress
+    }
 
     pub fn timestamp(&self) -> i64 {
         self.timestamp
@@ -802,7 +830,7 @@ impl History {
     // }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Volume {
     title: String,
     subtitle: Option<String>,
@@ -810,6 +838,9 @@ pub struct Volume {
     content_type: ContentType,
     volume_count: usize,
     entries: Vec<String>,
+
+    #[serde(skip)]
+    search_index: search::Index,
 }
 
 impl Volume {
@@ -837,6 +868,10 @@ impl Volume {
         self.content_type = content_type
     }
 
+    pub fn entry_ids(&self) -> &[String] {
+        &self.entries
+    }
+
     pub fn entries<'a>(&'a self, index: &'a Index) -> impl Iterator<Item = EntryWrapper> {
         self.entries.iter().filter_map(|e| index.entry(e))
     }
@@ -844,12 +879,35 @@ impl Volume {
     pub fn volume_count(&self) -> usize {
         self.volume_count
     }
+
+    pub fn search_index(&self) -> &search::Index {
+        &self.search_index
+    }
 }
 
 impl Save for Volume {
     type Id = String;
 
-    fn save(&self, id: &Self::Id) {
+    fn save(&mut self, id: &Self::Id) {
+        // Process intro.
+        let intro = fs::read_to_string(format!("content/volumes/{id}.intro")).unwrap();
+
+        // Create search index.
+        self.search_index = search::Index::new();
+        self.search_index
+            .add_section("TITLE".to_owned(), &self.title);
+        self.search_index.add_section(
+            "SUBTITLE".to_owned(),
+            self.subtitle.as_ref().map(|s| s.as_ref()).unwrap_or(""),
+        );
+        self.search_index.add_section("INTRO".to_owned(), &intro);
+        fs::write(
+            format!("content/volumes/{id}.index"),
+            self.search_index.to_bytes(),
+        )
+        .unwrap();
+
+        // Write data.
         let volume = File::create(format!("content/volumes/{id}.json")).unwrap();
         serde_json::to_writer_pretty(volume, self).unwrap();
     }
@@ -868,7 +926,7 @@ pub enum ContentType {
     Featured,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Entry {
     title: String,
     old_ids: Vec<String>,
@@ -877,6 +935,9 @@ pub struct Entry {
     description: String,
     summary: String,
     sections: Vec<u32>,
+
+    #[serde(skip)]
+    search_index: search::Index,
 }
 
 impl Entry {
@@ -919,21 +980,40 @@ impl Entry {
     pub fn sections<'a>(&'a self, index: &'a Index) -> impl Iterator<Item = SectionWrapper<'a>> {
         self.sections.iter().filter_map(|s| index.section(*s))
     }
+
+    pub fn search_index(&self) -> &search::Index {
+        &self.search_index
+    }
 }
 
 impl Save for Entry {
     type Id = String;
 
-    fn save(&self, id: &Self::Id) {
-        let volume = File::create(format!("content/entries/{id}.json")).unwrap();
-        serde_json::to_writer_pretty(volume, self).unwrap();
+    fn save(&mut self, id: &Self::Id) {
+        // Create search index.
+        self.search_index = search::Index::new();
+        self.search_index
+            .add_section("TITLE".to_owned(), &self.title);
+        self.search_index
+            .add_section("DESCRIPTION".to_owned(), &self.description);
+        self.search_index
+            .add_section("SUMMARY".to_owned(), &self.summary);
+        fs::write(
+            format!("content/entries/{id}.index"),
+            self.search_index.to_bytes(),
+        )
+        .unwrap();
+
+        // Write data.
+        let entry = File::create(format!("content/entries/{id}.json")).unwrap();
+        serde_json::to_writer_pretty(entry, self).unwrap();
     }
 }
 
 pub type EntryWrapperMut<'a> = WrapperMut<'a, Entry>;
 pub type EntryWrapper<'a> = Wrapper<'a, Entry>;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Section {
     heading: Option<String>,
     parent_entry: String,
@@ -944,6 +1024,10 @@ pub struct Section {
     comments: Vec<Comment>,
     perspectives: Vec<u32>,
     length: usize,
+    lines: usize,
+
+    #[serde(skip)]
+    search_index: search::Index,
 }
 
 impl Section {
@@ -991,6 +1075,10 @@ impl Section {
         &self.summary
     }
 
+    pub fn search_index(&self) -> &search::Index {
+        &self.search_index
+    }
+
     pub fn set_summary(&mut self, summary: String) {
         self.summary = process_text(&summary);
     }
@@ -1007,6 +1095,10 @@ impl Section {
         self.length
     }
 
+    pub fn lines(&self) -> usize {
+        self.lines
+    }
+
     pub fn length_str(&self) -> String {
         if self.length < 2000 {
             (self.length / 10 * 10).to_string()
@@ -1019,7 +1111,31 @@ impl Section {
 impl Save for Section {
     type Id = u32;
 
-    fn save(&self, id: &Self::Id) {
+    fn save(&mut self, id: &Self::Id) {
+        // Process contents.
+        let contents = fs::read_to_string(format!("content/sections/{id}.txt")).unwrap();
+        self.lines = contents.lines().filter(|l| !l.is_empty()).count();
+
+        // Create search index.
+        self.search_index = search::Index::new();
+        self.search_index.add_section(
+            "HEADING".to_owned(),
+            self.heading.as_ref().map(|s| s.as_ref()).unwrap_or(""),
+        );
+        self.search_index
+            .add_section("DESCRIPTION".to_owned(), &self.description);
+        self.search_index
+            .add_section("SUMMARY".to_owned(), &self.summary);
+        self.length = self
+            .search_index
+            .add_section("CONTENTS".to_owned(), &contents);
+        fs::write(
+            format!("content/sections/{id}.index"),
+            self.search_index.to_bytes(),
+        )
+        .unwrap();
+
+        // Write data.
         let section = File::create(format!("content/sections/{id}.json")).unwrap();
         serde_json::to_writer_pretty(section, self).unwrap();
     }
@@ -1035,14 +1151,19 @@ pub enum ContentStatus {
     Complete,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Comment {
+    context: Option<String>,
     author: String,
     timestamp: i64,
     contents: String,
 }
 
 impl Comment {
+    pub fn context(&self) -> Option<&String> {
+        self.context.as_ref()
+    }
+
     pub fn author_id(&self) -> &str {
         &self.author
     }
@@ -1059,7 +1180,7 @@ impl Comment {
 pub trait Save {
     type Id;
 
-    fn save(&self, id: &Self::Id);
+    fn save(&mut self, id: &Self::Id);
 }
 
 pub struct Wrapper<'a, T: Save> {
@@ -1151,7 +1272,7 @@ pub fn create_id(name: &str) -> String {
         .replace("</i>", "")
         .to_lowercase()
         .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == ' ')
+        .filter(|c| c.is_ascii_alphanumeric() || *c == ' ' || *c == '-')
         .collect();
     name.replace(' ', "-")
 }
@@ -1174,5 +1295,13 @@ pub fn process_text(text: &str) -> String {
     let quote = Regex::new(r#"'"#).unwrap();
     let text = quote.replace_all(&text, "’");
 
-    text.into_owned()
+    let lines: Vec<_> = text.lines().filter(|&l| !l.is_empty()).collect();
+    lines.join("\n")
+}
+
+pub fn history_sorter(a: &&History, b: &&History) -> Ordering {
+    match b.timestamp().cmp(&a.timestamp()) {
+        Ordering::Equal => b.section_id().cmp(&a.section_id()),
+        other => other,
+    }
 }

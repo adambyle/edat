@@ -14,14 +14,14 @@
 }
 
 #empty-widget {
-    p {
+    & p {
         font: 14px var(--sans);
         color: var(--content);
         padding: 0 24px;
         margin-bottom: 12px;
     }
 
-    a {
+    & a {
         background: none;
         font: 14px var(--sans);
         padding: 0 24px;
@@ -49,6 +49,7 @@
         overflow-x: scroll;
         scrollbar-width: none;
         overscroll-behavior-x: contain;
+        scroll-snap-type: x mandatory;
 
         &::-webkit-scrollbar {
             display: none;
@@ -81,6 +82,8 @@
 
     & .section {
         flex: 0 0 calc(100% - 24px);
+        scroll-snap-align: center;
+        position: relative;
 
         & .section-info {
             display: block;
@@ -136,10 +139,23 @@
             }
         }
 
+        & .unread-wrapper {
+            margin-top: 6px;
+            display: flex;
+        }
+
         & .unread {
             font: 11px var(--sans);
             color: var(--content);
-            margin-top: 6px;
+        }
+
+        & .skip {
+            background: none;
+            border: none;
+            flex-grow: 1;
+            text-align: right;
+            font: 11px var(--sans);
+            color: var(--gray);
         }
 
         & .read {
@@ -169,6 +185,49 @@
                 color: var(--gray);
             }
         }
+    }
+}
+
+#library-widget {
+    .volumes {
+        display: block;
+        padding: 12px 24px;
+        border-width: 1px 0;
+        border-color: var(--gray);
+        border-style: solid;
+        background: var(--shadow);
+    }
+
+    & .volume {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 12px 24px;
+        border: 1px solid var(--content);
+        position: relative;
+        background: var(--bg);
+    }
+
+    & .volume + .volume {
+        margin-top: 12px;
+    }
+
+    & h3 {
+        font: 21px var(--serif);
+        color: var(--content);
+        text-align: center;
+    }
+
+    & h3:has(+ .subtitle) {
+        padding: 0 24px 6px 24px;
+        border-bottom: 1px solid var(--gray);
+    }
+
+    & .subtitle {
+        font: 11px var(--sans);
+        color: var(--gray);
+        text-align: center;
     }
 }
 

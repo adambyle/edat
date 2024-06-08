@@ -8,10 +8,26 @@ const elRecentCarousel = document.getElementById("recent-carousel") as HTMLDivEl
 if (elRecentExpand) {
     const unreadSection = elRecentCarousel.querySelector(".section[edat-unread]");
     if (unreadSection) {
-        elRecentCarousel.scrollBy({
-            left: unreadSection.getBoundingClientRect().left - 48,
-            behavior: "smooth",
-        });
+        setTimeout(() => {
+            elRecentCarousel.scrollBy({
+                left: unreadSection.getBoundingClientRect().left - 48,
+                behavior: "smooth",
+            });
+        }, 500);
+    }
+
+    const skipButtons: NodeListOf<HTMLButtonElement> =
+        document.querySelectorAll("#recent-widget .skip");
+    for (const el of skipButtons) {
+        el.onclick = () => {
+            const unreadMessage = el.previousSibling as HTMLSpanElement;
+
+            fetch(`/read/${el.getAttribute("edat-section")}?finished=true`, { method: "POST" }).then(() => {
+                unreadMessage.innerText = "Marked as read";
+            });
+
+            el.remove();
+        }
     }
 
     const concise = document.getElementsByClassName("concise") as HTMLCollectionOf<HTMLElement>;

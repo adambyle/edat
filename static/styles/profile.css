@@ -1,0 +1,156 @@
+@import url("/style/universal.css");
+
+h1 {
+    margin-top: 24px;
+    margin-left: 24px;
+    font: bold 28px var(--serif);
+    font-style: italic;
+    margin-bottom: 24px;
+    color: var(--content);
+}
+
+.module {
+    margin-top: 24px;
+
+    & h2 {
+        margin: 0 24px 12px 24px;
+        font: bold 21px var(--sans);
+        color: var(--content);
+    }
+
+    & .wrapper {
+        border-color: var(--gray);
+        border-style: solid;
+        border-width: 1px 0;
+        padding: 12px 24px;
+        background: var(--shadow);
+
+        & p {
+            font: 14px var(--sans);
+            color: var(--content);
+        }
+    }
+}
+
+.widget {
+    display: flex;
+    align-items: center;
+    margin-top: 12px;
+    
+    & button {
+        border: 1px solid var(--content);
+        color: var(--content);
+        background: none;
+        width: 100%;
+        padding: 8px 16px;
+        font: 14px var(--sans);
+        text-align: left;
+        transition-property: color, background-color;
+        transition-duration: 0.1s;
+        transition-timing-function: ease;
+        touch-action: manipulation;
+    
+        &.selected {
+            background: var(--content);
+            color: var(--bg);
+        }
+    }
+
+    & h3 {
+        font: 18px var(--sans);
+        color: var(--content);
+        transition: color 0.1s ease;
+    }
+
+    & p {
+        margin: 0!important;
+    }
+
+    & span {
+        width: 16px;
+        margin-right: 12px;
+        text-align: right;
+        font: 18px var(--serif);
+        color: var(--content);
+        opacity: 0;
+        transition: opacity 0.1s ease;
+    }
+    
+    & .selected h3, & .selected p {
+        color: var(--bg);
+    }
+}
+
+#widgets {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    margin-top: 12px;
+}
+
+.expand {
+    margin-top: 6px;
+    margin-left: 24px;
+    font: 11px var(--sans);
+    color: var(--gray);
+}
+
+#history {
+    & .section {
+        display: block;
+        background: var(--bg);
+        border: 1px solid var(--content);
+        padding: 6px 12px;
+        margin-top: 12px;
+        position: relative;
+
+        & h3 {
+            font: 18px var(--serif);
+            color: var(--content);
+            margin-bottom: 6px;
+        }
+
+        & .index {
+            font: 11px var(--sans);
+            color: var(--gray);
+            margin-left: 6px;
+        }
+
+        & .info {
+            font: 11px var(--sans);
+            color: var(--gray);
+            margin-top: 12px;
+        }
+
+        & .lastread {
+            position: absolute;
+            bottom: 6px;
+            right: 12px;
+            text-align: right;
+        }
+    }
+
+    & #history-rest {
+        display: none;
+        opacity: 0;
+        transition: opacity 0.1s ease;
+    }
+}
+
+#contributions p {
+    font: 14px var(--sans);
+    color: var(--content);
+    margin: 0 24px;
+}
+
+#home {
+    margin: 24px 24px;
+    border: 1px solid var(--content);
+    color: var(--content);
+    background: none;
+    width: calc(100% - 48px);
+    padding: 8px 16px;
+    font: 14px var(--sans);
+    text-align: left;
+    touch-action: manipulation;
+}
