@@ -136,6 +136,7 @@ pub async fn archive() -> impl IntoResponse {
 
     directory("content".into(), &mut zip);
     directory("users".into(), &mut zip);
+    directory("archived".into(), &mut zip);
     zip.finish().unwrap();
 
     let response = static_file("./", archive_path.clone(), "application/zip");
@@ -711,10 +712,10 @@ mod cmd {
         Volumes,
         NextSectionId,
         Images,
-        GetContents {
+        GetContent {
             id: u32,
         },
-        SetContents {
+        SetContent {
             id: u32,
             content: String,
         },
@@ -966,7 +967,7 @@ pub async fn cmd(
             index.remove_volume(&id);
             terminal::volumes(volumes(&index))
         }
-        B::GetContents { id } => {
+        B::GetContent { id } => {
             let section = index.section(id);
             or_terminal_error(section, "section", &id)?;
             let mut section_file = File::open(format!("content/sections/{}.txt", id)).unwrap();
@@ -1049,7 +1050,7 @@ pub async fn cmd(
             let section = index.section(id).unwrap();
             terminal::section(section_info(&index, section))
         }
-        B::SetContents {
+        B::SetContent {
             id,
             content: contents,
         } => {

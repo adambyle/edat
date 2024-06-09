@@ -205,12 +205,12 @@ type Cmd =
         }
     }
     | {
-        GetContents: {
+        GetContent: {
             id: number,
         }
     }
     | {
-        SetContents: {
+        SetContent: {
             id: number,
             content: string,
         }
@@ -567,7 +567,7 @@ function parseCommand(command: string) {
         }
         submitAction = updateContents(section);
         cmd({
-            GetContents: {
+            GetContent: {
                 id: section,
             },
         });
@@ -599,7 +599,7 @@ function updateContents(id: number) {
         if (elContents.value.length > 0) {
             submitAction = updateContents(id);
             cmd({
-                SetContents: {
+                SetContent: {
                     id,
                     content: elContents.value,
                 }
