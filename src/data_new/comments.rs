@@ -8,8 +8,6 @@ pub(super) struct CommentData {
     pub(super) content: Vec<String>,
     pub(super) show: bool,
     pub(super) line: usize,
-    pub(super) displaced: bool,
-    pub(super) context: Option<String>,
     pub(super) author: String,
     pub(super) timestamp: i64,
 }
@@ -21,13 +19,6 @@ pub struct Thread<'index> {
 
     /// The comments added to this line.
     pub comments: Vec<Comment<'index>>,
-
-    /// Comments that were displaced from a removed line.
-    pub displaced: Vec<Comment<'index>>,
-
-    /// Additional context for comments that were displaced from
-    /// another line.
-    pub context: Option<String>,
 }
 
 /// A comment in a thread.

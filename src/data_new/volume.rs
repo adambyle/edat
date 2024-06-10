@@ -1,6 +1,7 @@
 use std::fs::{self, File};
 
 use chrono::Utc;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use crate::search;
@@ -21,16 +22,29 @@ pub struct VolumeData {
     pub(super) search_index: search::Index,
 }
 
+/// The kind of content this volume contains.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum Kind {
+    /// The volume contains normal journal content.
     Journal,
+
+    /// The volume contains pre-EDAT content.
     Archive,
+
+    /// The volume contains diary content.
     Diary,
+
+    /// The volume contains cartoon content.
     Cartoons,
+
+    /// The volume contains creative-writing.
     Creative,
+
+    /// The volume contains guest-user content.
     Featured,
 }
 
+/// A wrapper around a volume.
 pub struct Volume<'index> {
     pub(super) index: &'index Index,
     pub(super) id: String,
@@ -42,30 +56,37 @@ macro_rules! immut_fns {
             self.index.volumes.get(&self.id).unwrap()
         }
 
+        /// The volume id.
         pub fn id(&self) -> &str {
             &self.id
         }
 
+        /// The volume title.
         pub fn title(&self) -> &str {
             &self.data().title
         }
 
+        /// The volume subtitle, if any.
         pub fn subtitle(&self) -> Option<&String> {
             self.data().subtitle.as_ref()
         }
 
+        /// The id of the owner.
         pub fn owner_id(&self) -> &str {
             &self.data().owner
         }
 
+        /// Get a wrapper around the owner.
         pub fn owner(&self) -> User {
             self.index.user(self.owner_id().to_owned()).unwrap()
         }
 
+        /// The kind of content in the volume.
         pub fn kind(&self) -> Kind {
             self.data().content_type.clone()
         }
 
+        /// The index of the volume in the volume list.
         pub fn index_in_list(&self) -> usize {
             self.index
                 .volumes
@@ -74,28 +95,49 @@ macro_rules! immut_fns {
                 .unwrap()
         }
 
+        /// The number of parts in the volume.
         pub fn parts_count(&self) -> usize {
             self.data().volume_count
         }
 
+        /// The number of entries in the volume.
         pub fn entry_count(&self) -> usize {
             self.data().entries.len()
         }
 
+        /// The ids of the entries in the volume.
         pub fn entry_ids(&self) -> &[String] {
             &self.data().entries
         }
 
+        /// Get wrappers around the entries in the volume.
         pub fn entries(&self) -> impl Iterator<Item = Entry> {
             self.entry_ids()
                 .iter()
                 .map(|e| self.index.entry(e.clone()).unwrap())
         }
 
+        /// Get wrappers around the entries in the volume, sorted by part.
+        pub fn entries_by_part(&self) -> IndexMap<usize, Vec<Entry>> {
+            let mut map = IndexMap::new();
+    
+            for entry in self.entries() {
+                map.entry(entry.parent_volume_part())
+                    .or_insert(Vec::new())
+                    .push(entry);
+            }
+    
+            map.sort_unstable_keys();
+    
+            map
+        }
+
+        /// Get the text content of the volume intro.
         pub fn intro(&self) -> String {
             fs::read_to_string(format!("content/volumes/{}.intro", self.id)).unwrap()
         }
 
+        /// Get the search index.
         pub fn search_index(&self) -> &search::Index {
             &self.data().search_index
         }
@@ -106,6 +148,7 @@ impl Volume<'_> {
     immut_fns!();
 }
 
+/// A mutable wrapper around a volume.
 pub struct VolumeMut<'index> {
     pub(super) index: &'index mut Index,
     pub(super) id: String,
@@ -119,6 +162,7 @@ impl VolumeMut<'_> {
 
     immut_fns!();
 
+    /// Set the volume title.
     pub fn set_title(&mut self, title: &str) -> Result<(), DuplicateIdError<String>> {
         let title = process_text(title);
 
@@ -176,48 +220,36 @@ impl VolumeMut<'_> {
         Ok(())
     }
 
+    /// Set the volume subtitle.
     pub fn set_subtitle(&mut self, subtitle: Option<String>) {
         self.data_mut().subtitle = subtitle;
     }
 
+    /// Set the volume content kind.
     pub fn set_kind(&mut self, kind: Kind) {
         self.data_mut().content_type = kind;
     }
 
+    /// Set the volume intro text.
     pub fn set_intro(&mut self, intro: String) {
         // Format and write the content.
         let content = process_text(&intro);
         fs::write(format!("content/volumes/{}.intro", self.id), content);
     }
 
+    /// Change the location of the volume.
     pub fn move_to(&mut self, position: Position<(), Volume>) {
         let id = self.id.clone();
         let volume = self.index.volumes.shift_remove(&id).unwrap();
 
-        // Get new parent.
-        let index = match position {
-            Position::StartOf(()) => 0,
-            Position::EndOf(()) => self.index.volumes.len(),
-            Position::Before(sibling) => self
-                .index
-                .volumes
-                .keys()
-                .position(|v| v == &sibling.id)
-                .unwrap(),
-            Position::After(sibling) => {
-                1 + self
-                    .index
-                    .volumes
-                    .keys()
-                    .position(|v| v == &sibling.id)
-                    .unwrap()
-            }
-        };
+        // Get position.
+        let index = position.resolve(&self.index);
 
         // Insert volume.
         self.index.volumes.shift_insert(index, id, volume);
     }
 
+    /// Remove the volume from the journal.
     pub fn remove(mut self) {
         // Orphan this volume's entries.
         let entry_ids = self.entry_ids().to_owned();
@@ -227,16 +259,17 @@ impl VolumeMut<'_> {
 
         // Update index registry.
         self.index.volumes.shift_remove(&self.id);
+        self.index.save();
 
         // Archive files.
         let now = Utc::now().timestamp();
         let _ = fs::rename(
             format!("content/volume/{}.json", &self.id),
-            format!("/archive/volume-{}-{now}", &self.id),
+            format!("archive/volume-{}-{now}", &self.id),
         );
         let _ = fs::rename(
             format!("content/volume/{}.intro", &self.id),
-            format!("/archive/intro-{}-{now}", &self.id),
+            format!("archive/intro-{}-{now}", &self.id),
         );
 
         self.exists = false;

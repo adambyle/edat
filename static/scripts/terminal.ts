@@ -214,6 +214,11 @@ type Cmd =
             id: number,
             content: string,
         }
+    }
+    | {
+        InitUser: {
+            id: string,
+        }
     };
 
 const commandInput = document.getElementById("command") as HTMLInputElement;

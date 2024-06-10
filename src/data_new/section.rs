@@ -1,6 +1,11 @@
-use std::fs::{self, File};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::{self, File},
+};
 
 use chrono::{NaiveDate, Utc};
+use levenshtein::levenshtein;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::search;
@@ -24,13 +29,21 @@ pub(super) struct SectionData {
     pub(super) search_index: search::Index,
 }
 
+/// Section completion status.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum Status {
+    /// The section is incomplete. It will display as "coming soon...".
     Missing,
+
+    /// The section is incomplete. The text so far will be displayed,
+    /// but readers won't be notified about it until it's done.
     Incomplete,
+
+    /// The section is complete.
     Complete,
 }
 
+/// A wrapper around a section.
 pub struct Section<'index> {
     pub(super) index: &'index Index,
     pub(super) id: u32,
@@ -42,87 +55,71 @@ macro_rules! immut_fns {
             self.index.sections.get(&self.id).unwrap()
         }
 
+        /// The section id.
         pub fn id(&self) -> u32 {
             self.id
         }
 
+        /// The section heading, if any.
         pub fn heading(&self) -> Option<&String> {
             self.data().heading.as_ref()
         }
 
+        /// The section description (brief explanation).
         pub fn description(&self) -> &str {
             &self.data().description
         }
 
+        /// The section summary (longer explanation).
         pub fn summary(&self) -> &str {
             &self.data().summary
         }
 
+        /// The section completion status.
         pub fn status(&self) -> Status {
             self.data().status.clone()
         }
 
+        /// The section creation date.
         pub fn date(&self) -> NaiveDate {
             NaiveDate::parse_from_str(&self.data().date, "%Y-%m-%d").unwrap()
         }
 
+        /// The comment thread associated with the specified line.
+        /// 
+        /// This will return an empty thread if the line doesn't have any comments.
         pub fn comments(&self, line: usize) -> Thread {
-            // Wrap a comment's data.
-            fn to_comment<'index>(
-                index: &'index Index,
-                comment: &'index CommentData,
-            ) -> Comment<'index> {
-                Comment {
-                    uuid: comment.uuid,
-                    content: &comment.content,
-                    show: comment.show,
-                    author: index.user(comment.author.clone()).unwrap(),
-                    timestamp: comment.timestamp,
-                }
-            };
-
-            // The first displaced comment, if any, will have the context.
-            let context = self
-                .data()
-                .comments
-                .iter()
-                .find(|c| c.line == line && c.displaced)
-                .and_then(|c| c.context.clone());
-
             // Collect and process comments.
             let comments = self
                 .data()
                 .comments
                 .iter()
-                .filter(|c| c.line == line && !c.displaced)
-                .map(|c| to_comment(&self.index, c))
-                .collect();
-            let displaced: Vec<_> = self
-                .data()
-                .comments
-                .iter()
-                .filter(|c| c.line == line && c.displaced)
-                .map(|c| to_comment(&self.index, c))
+                .filter(|c| c.line == line)
+                .map(|c| Comment {
+                    uuid: c.uuid,
+                    content: &c.content,
+                    show: c.show,
+                    author: self.index.user(c.author.clone()).unwrap(),
+                    timestamp: c.timestamp,
+                })
                 .collect();
 
-            Thread {
-                line,
-                comments,
-                displaced,
-                context,
-            }
+            Thread { line, comments }
         }
 
+        /// The id of the parent entry.
         pub fn parent_entry_id(&self) -> &str {
             &self.data().parent_entry
         }
 
+        /// Get a wrapper around the parent entry.
         pub fn parent_entry(&self) -> Entry {
             self.index
                 .entry(self.data().parent_entry.to_owned())
                 .unwrap()
         }
 
+        /// The index of this section in its parent entry.
         pub fn index_in_parent(&self) -> usize {
             self.parent_entry()
                 .section_ids()
@@ -131,18 +128,22 @@ macro_rules! immut_fns {
                 .unwrap()
         }
 
+        /// The length in words of this section's content.
         pub fn length(&self) -> usize {
             self.data().length
         }
 
+        /// The number of lines in this section's content.
         pub fn lines(&self) -> usize {
             self.data().length
         }
 
+        /// The text content of this section.
         pub fn content(&self) -> String {
             fs::read_to_string(format!("content/sections/{}.txt", self.id)).unwrap()
         }
 
+        /// Get the search index for this section.
         pub fn search_index(&self) -> &search::Index {
             &self.data().search_index
         }
@@ -153,6 +154,7 @@ impl Section<'_> {
     immut_fns!();
 }
 
+/// A mutable wrapper around a section.
 pub struct SectionMut<'index> {
     pub(super) index: &'index mut Index,
     pub(super) id: u32,
@@ -166,39 +168,46 @@ impl SectionMut<'_> {
 
     immut_fns!();
 
+    /// Set the section heading.
     pub fn set_heading(&mut self, heading: Option<String>) {
         self.data_mut().heading = heading;
     }
 
+    /// Set the section description (brief explanation).
     pub fn set_description(&mut self, description: String) {
         self.data_mut().description = description;
     }
 
+    /// Set the section summary (longer explanation).
     pub fn set_summary(&mut self, summary: String) {
         self.data_mut().description = summary;
     }
 
+    /// Set the section status.
     pub fn set_status(&mut self, status: Status) {
         self.data_mut().status = status;
     }
 
+    /// Set the section creation date.
     pub fn set_date(&mut self, date: NaiveDate) {
         self.data_mut().date = date.format("%Y-%m-%d").to_string();
     }
 
+    /// Add a comment by a user to the thread at the specified line.
     pub fn add_comment(&mut self, user: User, line: usize, content: String) {
         self.data_mut().comments.push(CommentData {
-            uuid: todo!(),
+            uuid: rand::thread_rng().gen(),
             content: vec![content],
             show: true,
-            displaced: false,
             line,
-            context: None,
             author: user.id.clone(),
             timestamp: Utc::now().timestamp(),
         });
     }
 
+    /// Edit a comment's contents by its UUID.
+    /// 
+    /// The comment's past contents are preserved.
     pub fn edit_comment(&mut self, uuid: u128, content: String) {
         for comment in &mut self.data_mut().comments {
             if comment.uuid == uuid {
@@ -208,6 +217,7 @@ impl SectionMut<'_> {
         }
     }
 
+    /// Remove a comment by its UUID from its thread.
     pub fn remove_comment(&mut self, uuid: u128) {
         for comment in &mut self.data_mut().comments {
             if comment.uuid == uuid {
@@ -217,6 +227,7 @@ impl SectionMut<'_> {
         }
     }
 
+    /// Restore a comment by its UUID.
     pub fn restore_comment(&mut self, uuid: u128) {
         for comment in &mut self.data_mut().comments {
             if comment.uuid == uuid {
@@ -226,38 +237,70 @@ impl SectionMut<'_> {
         }
     }
 
-    pub fn set_context(&mut self, line: usize, context: String) {
-        let context = (!context.is_empty()).then_some(context);
-
-        // The first displaced comment, if any, will have the context.
-        let Some(comment) = self
-            .data_mut()
-            .comments
-            .iter_mut()
-            .find(|c| c.line == line && c.displaced)
-        else {
-            return;
-        };
-
-        comment.context = context;
-    }
-
+    /// Get the parent entry for mutation.
     pub fn parent_entry_mut(&mut self) -> EntryMut {
         self.index
             .entry_mut(self.data().parent_entry.to_owned())
             .unwrap()
     }
 
-    pub fn set_content(&mut self, content: String) -> Vec<u128> {
+    /// Set the text content of the section.
+    pub fn set_content(&mut self, content: String) {
+        // Get the lines of the old content.
+        let old_content = self.content();
+        let old_lines: Vec<_> = old_content.lines().collect();
+
         // Format and write the content.
         let content = process_text(&content);
-        fs::write(format!("content/sections/{}.txt", self.id), content);
+        fs::write(format!("content/sections/{}.txt", self.id), &content);
+        let new_lines: Vec<_> = content.lines().collect();
 
-        // TODO update comments and return UUIDs for comments that might need context.
+        // Collect the line numbers that have threads.
+        let thread_lines: HashSet<_> = self.data().comments.iter().map(|c| c.line).collect();
 
-        todo!()
+        // Map the old lines to the new lines.
+        let mut line_map: HashMap<_, _> = thread_lines
+            .into_iter()
+            .map(|old_line_number| {
+                let old_line = old_lines[old_line_number];
+                // First, test that the line did not move.
+                if new_lines.len() > old_line_number && old_line == new_lines[old_line_number] {
+                    return (old_line_number, old_line_number);
+                }
+                // Or, search for the line somewhere else in the section.
+                for (i, &new_line) in new_lines.iter().enumerate() {
+                    if old_line == new_line {
+                        return (old_line_number, i);
+                    }
+                }
+                // Use Levenshtein distance to find closest line.
+                let lines_and_distances: Vec<_> = new_lines
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &l)| (i, levenshtein(l, old_line)))
+                    .collect();
+                let closest_pair = lines_and_distances
+                    .iter()
+                    .min_by_key(|&(_, dist)| dist)
+                    .unwrap();
+
+                // If the closest line is more than half the length of the old line away,
+                // use the old line.
+                if closest_pair.1 > old_line.len() / 2 {
+                    return (old_line_number, old_line_number);
+                }
+
+                (old_line_number, closest_pair.0)
+            })
+            .collect();
+
+        // Transform the thread's lines.
+        for comment in &mut self.data_mut().comments {
+            comment.line = *line_map.get(&comment.line).unwrap();
+        }
     }
 
+    /// Change the location of the section.
     pub fn move_to(&mut self, position: Position<Entry, Section>) {
         // Detach from current entry.
         let id = self.id;
@@ -267,33 +310,7 @@ impl SectionMut<'_> {
             .retain(|&s| s != id);
 
         // Get new parent.
-        let (mut new_parent_entry, new_index_in_parent) = match position {
-            Position::StartOf(entry) => {
-                let entry = self.index.entry_mut(entry.id).unwrap();
-                (entry, 0)
-            }
-            Position::EndOf(entry) => {
-                let index = entry.section_count();
-                let entry = self.index.entry_mut(entry.id).unwrap();
-                (entry, index)
-            }
-            Position::Before(sibling) => {
-                let index = sibling.index_in_parent();
-                let entry = self
-                    .index
-                    .entry_mut(sibling.parent_entry_id().to_owned())
-                    .unwrap();
-                (entry, index)
-            }
-            Position::After(sibling) => {
-                let index = sibling.index_in_parent();
-                let entry = self
-                    .index
-                    .entry_mut(sibling.parent_entry_id().to_owned())
-                    .unwrap();
-                (entry, 1 + index)
-            }
-        };
+        let (mut new_parent_entry, new_index_in_parent) = position.resolve(&mut self.index);
 
         // Insert section.
         new_parent_entry
@@ -302,6 +319,7 @@ impl SectionMut<'_> {
             .insert(new_index_in_parent, self.id.clone());
     }
 
+    /// Remove the section from the journal.
     pub fn remove(mut self) {
         // Update parent entry.
         let id = self.id;
@@ -322,11 +340,11 @@ impl SectionMut<'_> {
         let now = Utc::now().timestamp();
         fs::rename(
             format!("content/section/{}.json", &self.id),
-            format!("/archive/section-{}-{now}", &self.id),
+            format!("archive/section-{}-{now}", &self.id),
         );
         fs::rename(
             format!("content/section/{}.txt", &self.id),
-            format!("/archivecontent-{}-{now}", &self.id),
+            format!("archive/content-{}-{now}", &self.id),
         );
 
         // Prevent saving on drop.

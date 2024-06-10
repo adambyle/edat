@@ -21,6 +21,7 @@ pub(super) struct EntryData {
     pub(super) search_index: search::Index,
 }
 
+/// A wrapper around an entry.
 pub struct Entry<'index> {
     pub(super) index: &'index Index,
     pub(super) id: String,
@@ -32,45 +33,54 @@ macro_rules! immut_fns {
             self.index.entries.get(&self.id).unwrap()
         }
 
+        /// The entry id.
         pub fn id(&self) -> &str {
             &self.id
         }
 
+        /// The entry title.
         pub fn title(&self) -> &str {
             &self.data().title
         }
 
+        /// The entry description (brief explanation).
         pub fn description(&self) -> &str {
             &self.data().description
         }
 
+        /// The entry summary (longer explanation).
         pub fn summary(&self) -> &str {
             &self.data().summary
         }
 
+        /// The id of the author.
         pub fn author_id(&self) -> &str {
             &self.data().author
         }
 
+        /// Get a wrapper around the author.
         pub fn author(&self) -> User {
             self.index.user(self.author_id().to_owned()).unwrap()
         }
 
+        /// The id of the parent volume.
         pub fn parent_volume_id(&self) -> &str {
             &self.data().parent_volume.0
         }
 
+        /// The part or subvolume this entry is in.
         pub fn parent_volume_part(&self) -> usize {
             self.data().parent_volume.1
         }
 
+        /// Get a wrapper around the parent volume.
         pub fn parent_volume(&self) -> Volume {
             self.index
                 .volume(self.data().parent_volume.0.to_owned())
                 .unwrap()
         }
 
-        pub fn index_in_parent(&self) -> usize {
+        pub(super) fn index_in_parent(&self) -> usize {
             self.parent_volume()
                 .entry_ids()
                 .iter()
@@ -78,20 +88,33 @@ macro_rules! immut_fns {
                 .unwrap()
         }
 
+        /// The index of this entry in its parent volume.
+        pub fn index_in_parent_volume_part(&self) -> usize {
+            self.parent_volume()
+                .entries()
+                .filter(|e| e.parent_volume_part() == self.parent_volume_part())
+                .position(|e| e.id == self.id)
+                .unwrap()
+        }
+
+        /// The number of sections in this entry.
         pub fn section_count(&self) -> usize {
             self.data().sections.len()
         }
 
+        /// The ids of the sections in this entry.
         pub fn section_ids(&self) -> &[u32] {
             &self.data().sections
         }
 
+        /// Get wrappers around the sections in this entry.
         pub fn sections(&self) -> impl Iterator<Item = Section> {
             self.section_ids()
                 .iter()
                 .map(|&s| self.index.section(s).unwrap())
         }
 
+        /// Get the search index for this entry.
         pub fn search_index(&self) -> &search::Index {
             &self.data().search_index
         }
@@ -102,6 +125,7 @@ impl Entry<'_> {
     immut_fns!();
 }
 
+/// A mutable wrapper around an entry.
 pub struct EntryMut<'index> {
     pub(super) index: &'index mut Index,
     pub(super) id: String,
@@ -115,6 +139,9 @@ impl EntryMut<'_> {
 
     immut_fns!();
 
+    /// Set the entry title.
+    ///
+    /// This also changes the entry's id, resulting in side effects in other resources.
     pub fn set_title(&mut self, title: &str) -> Result<(), DuplicateIdError<String>> {
         let title = process_text(title);
 
@@ -162,20 +189,24 @@ impl EntryMut<'_> {
         Ok(())
     }
 
+    /// Set the entry description (brief explanation).
     pub fn set_description(&mut self, description: &str) {
         self.data_mut().description = process_text(description);
     }
 
+    /// Set the entry summary (longer explanation).
     pub fn set_summary(&mut self, summary: &str) {
         self.data_mut().summary = process_text(summary);
     }
 
+    /// Get the parent volume for mutation.
     pub fn parent_volume_mut(&mut self) -> VolumeMut {
         self.index
             .volume_mut(self.data().parent_volume.0.to_owned())
             .unwrap()
     }
 
+    /// Change the location of the entry.
     pub fn move_to(&mut self, position: Position<(Volume, usize), Entry>) {
         // Detach from current volume.
         let parent_volume_id = self.parent_volume_id().to_owned();
@@ -191,33 +222,8 @@ impl EntryMut<'_> {
             .unwrap_or(0);
 
         // Get new parent.
-        let (mut new_parent_volume, new_parent_volume_part, new_index_in_parent) = match position {
-            Position::StartOf((volume, part)) => {
-                let volume = self.index.volume_mut(volume.id).unwrap();
-                (volume, part, 0)
-            }
-            Position::EndOf((volume, part)) => {
-                let index = volume.entry_count();
-                let volume = self.index.volume_mut(volume.id).unwrap();
-                (volume, part, index)
-            }
-            Position::Before(sibling) => {
-                let index = sibling.index_in_parent();
-                let volume = self
-                    .index
-                    .volume_mut(sibling.parent_volume_id().to_owned())
-                    .unwrap();
-                (volume, sibling.parent_volume_part(), index)
-            }
-            Position::After(sibling) => {
-                let index = sibling.index_in_parent();
-                let volume = self
-                    .index
-                    .volume_mut(sibling.parent_volume_id().to_owned())
-                    .unwrap();
-                (volume, sibling.parent_volume_part(), 1 + index)
-            }
-        };
+        let (mut new_parent_volume, new_parent_volume_part, new_index_in_parent) =
+            position.resolve(&mut self.index);
 
         // Update new parent volume count.
         let current_count = new_parent_volume.parts_count();
@@ -230,6 +236,7 @@ impl EntryMut<'_> {
             .insert(new_index_in_parent, self.id.clone());
     }
 
+    /// Remove the entry from the journal.
     pub fn remove(mut self) {
         // Orphan this entry's sections.
         let section_ids = self.section_ids().to_owned();
@@ -257,7 +264,7 @@ impl EntryMut<'_> {
         let now = Utc::now().timestamp();
         fs::rename(
             format!("content/entry/{}.json", &self.id),
-            format!("/archive/entry-{}-{now}", &self.id),
+            format!("archive/entry-{}-{now}", &self.id),
         );
 
         // Prevent saving on drop.

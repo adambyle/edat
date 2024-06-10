@@ -726,6 +726,9 @@ mod cmd {
             id: Option<String>,
             content: String,
         },
+        InitUser {
+            id: String,
+        }
     }
 }
 
@@ -1012,6 +1015,7 @@ pub async fn cmd(
             terminal::volume(volume_info(&index, volume))
         }
         B::Images => terminal::images(),
+        B::InitUser { id } => todo!(),
         B::MoveEntry { id, position } => {
             validate(index.move_entry(&id, position))?;
             let entry = index.entry(&id).unwrap();
