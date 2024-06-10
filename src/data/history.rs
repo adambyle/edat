@@ -1,12 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-/// What line the user is on in a section.
-///
-/// The first field in the tuple is the line number;
-/// the second is the total number of lines in the section.
-#[derive(Clone)]
-pub struct LineProgress(pub usize, pub usize);
-
 /// A user's progress through a section.
 pub enum SectionProgress {
     /// The user has never opened this section.
@@ -17,7 +10,7 @@ pub enum SectionProgress {
         /// The last time the user read this section.
         last_read: i64,
         /// The point the user left off on.
-        progress: LineProgress,
+        progress: usize,
     },
 
     /// The user has finished reading this section.
@@ -31,7 +24,7 @@ pub enum SectionProgress {
         /// The last time the user read this section.
         last_read: i64,
         /// The point the user left off on.
-        progress: LineProgress,
+        progress: usize,
     },
 }
 
@@ -53,12 +46,10 @@ impl SectionProgress {
         }
     }
 
-    /// The user's progress through this section, including the last time
-    /// they had it open.
-    ///
-    /// Returns [`None`] if the user has never opened this section or
-    /// if they finished it.
-    pub fn progress(&self) -> Option<(LineProgress, i64)> {
+    /// The user's progress through this section by line. Includes the time the section was last read.
+    /// 
+    /// If the user has never opened this section or has finished it, returns [`None`].
+    pub fn progress(&self) -> Option<(usize, i64)> {
         match self {
             Self::Reading {
                 progress,
@@ -67,7 +58,7 @@ impl SectionProgress {
             | Self::Rereading {
                 progress,
                 last_read,
-            } => Some((progress.clone(), *last_read)),
+            } => Some((*progress, *last_read)),
             _ => None,
         }
     }
@@ -102,13 +93,16 @@ pub enum EntryProgress {
         /// The total number of sections in the entry.
         out_of: usize,
         /// The point the user left off on.
-        progress: LineProgress,
+        progress: usize,
         /// The time the user last opened this section.
         last_read: i64,
     },
 
     /// The user finished reading every section in this entry.
-    Finished,
+    Finished {
+        /// The time the user finished reading this entry.
+        last_read: i64,
+    },
 }
 
 #[derive(Clone, Serialize, Deserialize)]

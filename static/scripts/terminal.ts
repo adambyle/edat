@@ -168,11 +168,6 @@ type Cmd =
     }
     | "NewUser"
     | {
-        DeleteUser: {
-            id: string,
-        }
-    }
-    | {
         UserPrivilege: {
             id: string,
             privilege: UserPrivilege,
@@ -505,14 +500,6 @@ function parseCommand(command: string) {
                     }
                 });
                 break;
-            case "user":
-                submitAction = updateUser(id);
-                cmd({
-                    DeleteUser: {
-                        id,
-                    }
-                });
-                break;
             default:
                 parseError();
         }
@@ -560,7 +547,7 @@ function parseCommand(command: string) {
                 id: volume,
             },
         });
-    } else if (root == "contents") {
+    } else if (root == "content") {
         if (!expectArgs(2)) {
             parseError();
             return;
@@ -570,7 +557,7 @@ function parseCommand(command: string) {
             parseError();
             return;
         }
-        submitAction = updateContents(section);
+        submitAction = updateContent(section);
         cmd({
             GetContent: {
                 id: section,
@@ -597,12 +584,12 @@ function updateIntro(id: string | null) {
     };
 }
 
-function updateContents(id: number) {
+function updateContent(id: number) {
     return () => {
         const elContents = document.getElementById("contents") as HTMLInputElement;
 
         if (elContents.value.length > 0) {
-            submitAction = updateContents(id);
+            submitAction = updateContent(id);
             cmd({
                 SetContent: {
                     id,

@@ -42,33 +42,88 @@ fn navbar() -> Markup {
     }
 }
 
-pub struct WidgetOption {
-    pub name: String,
-    pub description: String,
-    pub order: Option<usize>,
-    pub id: String,
-}
+pub mod widgets {
+    use maud::{html, Markup, PreEscaped};
 
-pub fn widget_options(widgets: Vec<WidgetOption>) -> Markup {
-    html! {
-        @for widget in widgets {
-            .widget {
-                @if let Some(order) = widget.order {
-                    span style="opacity: 1" { "#" (order + 1) }
-                } @else {
-                    span {}
-                }
-                button #(widget.id) .selected[widget.order.is_some()] {
-                    h3 { (PreEscaped(&widget.name)) }
-                    p { (PreEscaped(&widget.description)) }
+    pub struct Widget {
+        pub name: String,
+        pub description: String,
+        pub order: Option<usize>,
+        pub id: String,
+    }
+
+    pub fn widgets(widgets: Vec<Widget>) -> Markup {
+        html! {
+            @for widget in widgets {
+                .widget {
+                    @if let Some(order) = widget.order {
+                        span style="opacity: 1" { "#" (order + 1) }
+                    } @else {
+                        span {}
+                    }
+                    button #(widget.id) .selected[widget.order.is_some()] {
+                        h3 { (PreEscaped(&widget.name)) }
+                        p { (PreEscaped(&widget.description)) }
+                    }
                 }
             }
         }
     }
+
+    pub fn html(selected: &[String]) -> Vec<Widget> {
+        use Widget as W;
+
+        let order = |id| selected.iter().position(|s| s == id);
+
+        vec![
+            W {
+                name: "Recent additions".to_owned(),
+                description: "Carousel of the latest sections".to_owned(),
+                order: order(&"recent-widget"),
+                id: "recent-widget".to_owned(),
+            },
+            W {
+                name: "The library".to_owned(),
+                description: "Quick access to the main journal’s four books".to_owned(),
+                order: order(&"library-widget"),
+                id: "library-widget".to_owned(),
+            },
+            W {
+                name: "Last read".to_owned(),
+                description: "Return to where you left off".to_owned(),
+                order: order(&"last-widget"),
+                id: "last-widget".to_owned(),
+            },
+            W {
+                name: "Conversations".to_owned(),
+                description: "See where readers have recently commented".to_owned(),
+                order: order(&"conversations-widget"),
+                id: "conversations-widget".to_owned(),
+            },
+            W {
+                name: "Reading recommendation".to_owned(),
+                description: "Based on what you have left to read".to_owned(),
+                order: order(&"random-widget"),
+                id: "random-widget".to_owned(),
+            },
+            W {
+                name: "Extras".to_owned(),
+                description: "Quick access to old journals, fiction, and more".to_owned(),
+                order: order(&"extras-widget"),
+                id: "extras-widget".to_owned(),
+            },
+            W {
+                name: "Search bar".to_owned(),
+                description: "Website search features".to_owned(),
+                order: order(&"search-widget"),
+                id: "search-widget".to_owned(),
+            },
+        ]
+    }
 }
 
 pub fn profile(headers: &HeaderMap, data: profile::ProfileData) -> Markup {
-    let widgets = widgets(&data.widgets);
+    let widgets = widgets::html(&data.widgets);
 
     let history_preview_length = 3;
     let history_preview = data.sections.iter().take(history_preview_length);
@@ -81,7 +136,7 @@ pub fn profile(headers: &HeaderMap, data: profile::ProfileData) -> Markup {
             .wrapper {
                 p { "Choose which widgets to include on your homepage. Changes are saved automatically. The order you select them in will determine the order they appear on your homepage." }
                 #widgets {
-                    (widget_options(widgets))
+                    (widgets::widgets(widgets))
                 }
             }
             p.expand #homepage-expand { "Show options" }
@@ -192,59 +247,8 @@ pub mod setup {
     }
 }
 
-pub fn widgets(selected: &[String]) -> Vec<WidgetOption> {
-    use WidgetOption as W;
-
-    let order = |id| selected.iter().position(|s| s == id);
-
-    vec![
-        W {
-            name: "Recent additions".to_owned(),
-            description: "Carousel of the latest sections".to_owned(),
-            order: order(&"recent-widget"),
-            id: "recent-widget".to_owned(),
-        },
-        W {
-            name: "The library".to_owned(),
-            description: "Quick access to the main journal’s four books".to_owned(),
-            order: order(&"library-widget"),
-            id: "library-widget".to_owned(),
-        },
-        W {
-            name: "Last read".to_owned(),
-            description: "Return to where you left off".to_owned(),
-            order: order(&"last-widget"),
-            id: "last-widget".to_owned(),
-        },
-        W {
-            name: "Conversations".to_owned(),
-            description: "See where readers have recently commented".to_owned(),
-            order: order(&"conversations-widget"),
-            id: "conversations-widget".to_owned(),
-        },
-        W {
-            name: "Reading recommendation".to_owned(),
-            description: "Based on what you have left to read".to_owned(),
-            order: order(&"random-widget"),
-            id: "random-widget".to_owned(),
-        },
-        W {
-            name: "Extras".to_owned(),
-            description: "Quick access to old journals, fiction, and more".to_owned(),
-            order: order(&"extras-widget"),
-            id: "extras-widget".to_owned(),
-        },
-        W {
-            name: "Search bar".to_owned(),
-            description: "Website search features".to_owned(),
-            order: order(&"search-widget"),
-            id: "search-widget".to_owned(),
-        },
-    ]
-}
-
 pub fn setup(headers: &HeaderMap, volumes: Vec<setup::Volume>) -> Markup {
-    let widgets = widgets(&[]);
+    let widgets = widgets::html(&[]);
 
     let setup = html! {
         #welcome {
@@ -278,7 +282,7 @@ pub fn setup(headers: &HeaderMap, volumes: Vec<setup::Volume>) -> Markup {
             p { b { "Your homepage is customizable to serve the most relevant content." } }
             p { "Select the elements below in the order (top to bottom) you would like them to appear on your homepage. You can include or omit whichever you want." }
             p { "Common resources, like the library, the index, and the addition history, will always have quick links at the top, but you can get more detailed information by selecting their widgets below." }
-            (widget_options(widgets))
+            (widgets::widgets(widgets))
             p { "You can always change these settings later." }
             button #done { "Finished" }
         }
@@ -288,8 +292,6 @@ pub fn setup(headers: &HeaderMap, volumes: Vec<setup::Volume>) -> Markup {
 
 pub mod home {
     use maud::{html, Markup, PreEscaped};
-
-    use crate::data;
 
     pub enum RandomWidget {
         Unstarted(RandomEntry),
@@ -312,7 +314,7 @@ pub mod home {
                     @if let Some(part) = entry.volume_part {
                         (PreEscaped(&entry.volume))
                         " vol. "
-                        (data::roman_numeral(part + 1))
+                        (roman::to(part as i32 + 1).unwrap())
                     } @else {
                         (PreEscaped(&entry.volume))
                     }
@@ -498,7 +500,7 @@ pub mod home {
                             } @else {
                                 (PreEscaped(&section.parent_volume.0))
                                 " vol. "
-                                (data::roman_numeral(section.parent_volume.1 + 1))
+                                (roman::to(section.parent_volume.1 as i32 + 1).unwrap())
                             }
                         };
                         @if self.expand {
@@ -691,7 +693,7 @@ pub mod terminal {
 
     pub struct UserHistoryEntry {
         pub entry: String,
-        pub date: i64,
+        pub timestamp: i64,
     }
 
     pub struct UserPreference {
@@ -751,9 +753,15 @@ pub mod terminal {
 
     pub struct Volumes(pub Vec<(String, String)>);
 
-    pub fn error(category: &str, id: impl Display) -> maud::Markup {
+    pub fn missing(category: &str, id: String) -> maud::Markup {
         html! {
             p.error { "Unknown " (category) " " mono { (id) } }
+        }
+    }
+
+    pub fn duplicate(id: String) -> maud::Markup {
+        html! {
+            p.error { "Taken id " mono { (id) } }
         }
     }
 
@@ -794,7 +802,7 @@ pub mod terminal {
         }
     }
 
-    pub fn contents(id: impl Display, contents: String) -> maud::Markup {
+    pub fn content(id: impl Display, contents: String) -> maud::Markup {
         html! {
             p { b { "Contents for " (id) } }
             textarea #contents { (PreEscaped(contents)) }
@@ -815,7 +823,7 @@ pub mod terminal {
                     li {
                         mono { (user.entry) }
                         " read "
-                        utc { (user.date) }
+                        utc { (user.timestamp) }
                     }
                 }
             }

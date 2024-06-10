@@ -137,12 +137,16 @@ impl EntryMut<'_> {
         self.index.entries.get_mut(&self.id).unwrap()
     }
 
+    pub fn as_immut(&self) -> Entry {
+        Entry { index: &self.index, id: self.id.clone() }
+    }
+
     immut_fns!();
 
     /// Set the entry title.
     ///
     /// This also changes the entry's id, resulting in side effects in other resources.
-    pub fn set_title(&mut self, title: &str) -> Result<(), DuplicateIdError<String>> {
+    pub fn set_title(&mut self, title: &str) -> DataResult<()> {
         let title = process_text(title);
 
         // Changing the title also changes the id.
@@ -151,7 +155,7 @@ impl EntryMut<'_> {
         if new_id != self.id {
             // Make sure the id is not a duplicate.
             if self.index.entries.contains_key(&new_id) {
-                return Err(DuplicateIdError(new_id));
+                return Err(DataError::DuplicateId(new_id));
             }
 
             // Update parent volume.
@@ -207,7 +211,7 @@ impl EntryMut<'_> {
     }
 
     /// Change the location of the entry.
-    pub fn move_to(&mut self, position: Position<(Volume, usize), Entry>) {
+    pub fn move_to(&mut self, position: Position<(String, usize), String>) -> DataResult<()> {
         // Detach from current volume.
         let parent_volume_id = self.parent_volume_id().to_owned();
         let parent_volume = self.index.volumes.get_mut(&parent_volume_id).unwrap();
@@ -223,7 +227,7 @@ impl EntryMut<'_> {
 
         // Get new parent.
         let (mut new_parent_volume, new_parent_volume_part, new_index_in_parent) =
-            position.resolve(&mut self.index);
+            position.resolve(&mut self.index)?;
 
         // Update new parent volume count.
         let current_count = new_parent_volume.parts_count();
@@ -234,6 +238,8 @@ impl EntryMut<'_> {
             .data_mut()
             .entries
             .insert(new_index_in_parent, self.id.clone());
+
+        Ok(())
     }
 
     /// Remove the entry from the journal.

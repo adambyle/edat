@@ -160,10 +160,14 @@ impl VolumeMut<'_> {
         self.index.volumes.get_mut(&self.id).unwrap()
     }
 
+    pub fn as_immut(&self) -> Volume {
+        Volume { index: &self.index, id: self.id.clone() }
+    }
+
     immut_fns!();
 
     /// Set the volume title.
-    pub fn set_title(&mut self, title: &str) -> Result<(), DuplicateIdError<String>> {
+    pub fn set_title(&mut self, title: &str) -> DataResult<()> {
         let title = process_text(title);
 
         // Changing the title also changes the id.
@@ -172,7 +176,7 @@ impl VolumeMut<'_> {
         if new_id != self.id {
             // Make sure the id is not a duplicate.
             if self.index.volumes.contains_key(&new_id) {
-                return Err(DuplicateIdError(new_id));
+                return Err(DataError::DuplicateId(new_id));
             }
 
             // Update index registry.
@@ -221,8 +225,8 @@ impl VolumeMut<'_> {
     }
 
     /// Set the volume subtitle.
-    pub fn set_subtitle(&mut self, subtitle: Option<String>) {
-        self.data_mut().subtitle = subtitle;
+    pub fn set_subtitle(&mut self, subtitle: Option<&str>) {
+        self.data_mut().subtitle = subtitle.map(|s| process_text(s));
     }
 
     /// Set the volume content kind.
@@ -231,22 +235,24 @@ impl VolumeMut<'_> {
     }
 
     /// Set the volume intro text.
-    pub fn set_intro(&mut self, intro: String) {
+    pub fn set_intro(&mut self, intro: &str) {
         // Format and write the content.
         let content = process_text(&intro);
         fs::write(format!("content/volumes/{}.intro", self.id), content);
     }
 
     /// Change the location of the volume.
-    pub fn move_to(&mut self, position: Position<(), Volume>) {
+    pub fn move_to(&mut self, position: Position<(), String>) -> DataResult<()> {
         let id = self.id.clone();
         let volume = self.index.volumes.shift_remove(&id).unwrap();
 
         // Get position.
-        let index = position.resolve(&self.index);
+        let index = position.resolve(&self.index)?;
 
         // Insert volume.
         self.index.volumes.shift_insert(index, id, volume);
+
+        Ok(())
     }
 
     /// Remove the volume from the journal.

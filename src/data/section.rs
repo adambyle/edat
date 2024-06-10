@@ -86,7 +86,7 @@ macro_rules! immut_fns {
         }
 
         /// The comment thread associated with the specified line.
-        /// 
+        ///
         /// This will return an empty thread if the line doesn't have any comments.
         pub fn comments(&self, line: usize) -> Thread {
             // Collect and process comments.
@@ -133,6 +133,16 @@ macro_rules! immut_fns {
             self.data().length
         }
 
+        /// The length in words of this section's content, as a string.
+        pub fn length_string(&self) -> String {
+            let length = self.data().length;
+            if length < 2000 {
+                (length / 100 * 100).to_string()
+            } else {
+                format!("{}k", (length as f64 / 1000.0).round())
+            }
+        }
+
         /// The number of lines in this section's content.
         pub fn lines(&self) -> usize {
             self.data().length
@@ -141,6 +151,11 @@ macro_rules! immut_fns {
         /// The text content of this section.
         pub fn content(&self) -> String {
             fs::read_to_string(format!("content/sections/{}.txt", self.id)).unwrap()
+        }
+
+        /// The ids of the perspectives on this section.
+        pub fn perspective_ids(&self) -> &[u32] {
+            &self.data().perspectives
         }
 
         /// Get the search index for this section.
@@ -152,6 +167,14 @@ macro_rules! immut_fns {
 
 impl Section<'_> {
     immut_fns!();
+
+    /// Get all the threads in this section.
+    pub fn threads(&self) -> Vec<Thread> {
+        (0..self.lines())
+            .map(|l| self.comments(l))
+            .filter(|t| !t.comments.is_empty())
+            .collect()
+    }
 }
 
 /// A mutable wrapper around a section.
@@ -166,21 +189,25 @@ impl SectionMut<'_> {
         self.index.sections.get_mut(&self.id).unwrap()
     }
 
+    pub fn as_immut(&self) -> Section {
+        Section { index: &self.index, id: self.id.clone() }
+    }
+
     immut_fns!();
 
     /// Set the section heading.
-    pub fn set_heading(&mut self, heading: Option<String>) {
-        self.data_mut().heading = heading;
+    pub fn set_heading(&mut self, heading: Option<&str>) {
+        self.data_mut().heading = heading.map(|h| process_text(&h));
     }
 
     /// Set the section description (brief explanation).
-    pub fn set_description(&mut self, description: String) {
-        self.data_mut().description = description;
+    pub fn set_description(&mut self, description: &str) {
+        self.data_mut().description = process_text(description);
     }
 
     /// Set the section summary (longer explanation).
-    pub fn set_summary(&mut self, summary: String) {
-        self.data_mut().description = summary;
+    pub fn set_summary(&mut self, summary: &str) {
+        self.data_mut().summary = process_text(summary);
     }
 
     /// Set the section status.
@@ -194,10 +221,10 @@ impl SectionMut<'_> {
     }
 
     /// Add a comment by a user to the thread at the specified line.
-    pub fn add_comment(&mut self, user: User, line: usize, content: String) {
+    pub fn add_comment(&mut self, user: User, line: usize, content: &str) {
         self.data_mut().comments.push(CommentData {
             uuid: rand::thread_rng().gen(),
-            content: vec![content],
+            content: vec![process_text(content)],
             show: true,
             line,
             author: user.id.clone(),
@@ -206,12 +233,12 @@ impl SectionMut<'_> {
     }
 
     /// Edit a comment's contents by its UUID.
-    /// 
+    ///
     /// The comment's past contents are preserved.
-    pub fn edit_comment(&mut self, uuid: u128, content: String) {
+    pub fn edit_comment(&mut self, uuid: u128, content: &str) {
         for comment in &mut self.data_mut().comments {
             if comment.uuid == uuid {
-                comment.content.push(content);
+                comment.content.push(process_text(content));
                 return;
             }
         }
@@ -245,7 +272,7 @@ impl SectionMut<'_> {
     }
 
     /// Set the text content of the section.
-    pub fn set_content(&mut self, content: String) {
+    pub fn set_content(&mut self, content: &str) {
         // Get the lines of the old content.
         let old_content = self.content();
         let old_lines: Vec<_> = old_content.lines().collect();
@@ -301,7 +328,7 @@ impl SectionMut<'_> {
     }
 
     /// Change the location of the section.
-    pub fn move_to(&mut self, position: Position<Entry, Section>) {
+    pub fn move_to(&mut self, position: Position<String, u32>) -> DataResult<()> {
         // Detach from current entry.
         let id = self.id;
         self.parent_entry_mut()
@@ -310,13 +337,15 @@ impl SectionMut<'_> {
             .retain(|&s| s != id);
 
         // Get new parent.
-        let (mut new_parent_entry, new_index_in_parent) = position.resolve(&mut self.index);
+        let (mut new_parent_entry, new_index_in_parent) = position.resolve(&mut self.index)?;
 
         // Insert section.
         new_parent_entry
             .data_mut()
             .sections
             .insert(new_index_in_parent, self.id.clone());
+
+        Ok(())
     }
 
     /// Remove the section from the journal.

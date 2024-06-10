@@ -9,7 +9,6 @@ use axum::{
 };
 
 mod data;
-mod data_new;
 mod html;
 mod routes;
 mod search;

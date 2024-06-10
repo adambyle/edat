@@ -1,8 +1,6 @@
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::fs::{self, read_to_string};
 use std::io::{self, Read, Write};
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::{fs::File, path::Path};
 
@@ -12,12 +10,16 @@ use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use chrono::{Datelike, NaiveDate, Utc};
+use indexmap::IndexMap;
+use rand::Rng;
 use serde::Deserialize;
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
 use crate::html::home::Widget;
-use crate::{data, html, AppState};
+use crate::{data::*, html, AppState};
+
+// TODO refactor and deal with unwraps.
 
 pub async fn script(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
     static_file("static/scripts", file_name, "text/javascript")
@@ -57,6 +59,7 @@ pub async fn login(
     let name = name.to_lowercase().replace(char::is_whitespace, "");
     let code = code.to_lowercase();
 
+    // Find a user whose first name matches the input or whose id matches the input.
     for user in index.users() {
         if (name == user.first_name().to_lowercase() || &name == user.id()) && user.has_code(&code)
         {
@@ -74,34 +77,26 @@ pub async fn profile(headers: HeaderMap, State(state): State<AppState>) -> impl 
         Err(html) => return html,
     };
 
-    let history = user.history().unwrap();
+    // Get the sections read in the last two months.
     let two_months_ago = Utc::now().timestamp() - 60 * 60 * 24 * 60;
-    let mut history: Vec<_> = history.iter().collect();
-    history.sort_by(data::history_sorter);
-    let sections = history
+    let sections = user
+        .history()
         .iter()
-        .filter(|h| h.timestamp() >= two_months_ago)
-        .filter_map(|h| {
-            let section = index.section(h.section_id());
-            section.map(|s| {
-                let entry = index.entry(s.parent_entry_id()).unwrap();
-                let index = entry
-                    .section_ids()
-                    .iter()
-                    .position(|id| id == s.id())
-                    .expect(&format!(
-                        "section {} not found in parent entry {}",
-                        s.id(),
-                        entry.id()
-                    ));
-                html::profile::ViewedSection {
-                    entry: entry.title().to_owned(),
-                    description: s.description().to_owned(),
-                    timestamp: h.timestamp(),
-                    id: *s.id(),
-                    index: (index, entry.section_ids().len()),
-                    progress: (h.progress(), s.lines()),
-                }
+        .filter_map(|(s, p)| {
+            let Some((progress, timestamp)) = p.progress() else {
+                return None;
+            };
+            if timestamp < two_months_ago {
+                return None;
+            }
+
+            Some(html::profile::ViewedSection {
+                description: s.description().to_owned(),
+                timestamp: timestamp,
+                entry: s.parent_entry().title().to_owned(),
+                id: s.id(),
+                index: (s.index_in_parent(), s.parent_entry().section_count()),
+                progress: (progress, s.lines()),
             })
         })
         .collect();
@@ -157,7 +152,7 @@ pub async fn widgets(
 ) -> StatusCode {
     let mut index = state.index.lock().unwrap();
     let user = get_cookie(&headers, "edat_user").unwrap();
-    let mut user = index.user_mut(user).unwrap();
+    let mut user = index.user_mut(user.to_owned()).unwrap();
 
     user.set_widgets(widgets);
 
@@ -167,20 +162,30 @@ pub async fn widgets(
 #[derive(Deserialize)]
 pub struct ReadQuery {
     progress: Option<usize>,
-    finished: Option<bool>,
+    entry: bool,
 }
 
 pub async fn read(
     headers: HeaderMap,
     State(state): State<AppState>,
-    ReqPath(id): ReqPath<u32>,
+    ReqPath(id): ReqPath<String>,
     Query(options): Query<ReadQuery>,
 ) -> StatusCode {
     let mut index = state.index.lock().unwrap();
     let user = get_cookie(&headers, "edat_user").unwrap();
-    let mut user = index.user_mut(user).unwrap();
+    let mut user = index.user_mut(user.to_owned()).unwrap();
 
-    user.read_section(id, options.progress, options.finished.unwrap_or(false));
+    if options.entry {
+        user.finished_entry(id);
+    } else if let Some(progress) = options.progress {
+        if let Ok(id) = id.parse() {
+            user.reading_section(id, progress);
+        }
+    } else {
+        if let Ok(id) = id.parse() {
+            user.finished_section(id);
+        }
+    }
 
     StatusCode::OK
 }
@@ -196,11 +201,11 @@ pub async fn register(
     let mut sections: Vec<u32> = Vec::new();
     if body.entries.get(0).is_some_and(|e| e == "$all") {
         // The user indicated they have read everything.
-        sections.extend(index.sections().map(|s| *s.id()));
+        sections.extend(index.sections().map(|s| s.id()));
     } else {
         // Load the specific entries.
         for entry in body.entries {
-            let Some(entry) = index.entry(&entry) else {
+            let Ok(entry) = index.entry(entry) else {
                 continue;
             };
             sections.extend(entry.section_ids());
@@ -209,14 +214,12 @@ pub async fn register(
 
     // Update the user's history and widget preferences.
     let user = get_cookie(&headers, "edat_user").unwrap();
-    let mut user = index.user_mut(user).unwrap();
-    if sections.len() == 0 {
-        user.empty_history();
-    }
+    let mut user = index.user_mut(user.to_owned()).unwrap();
     for section in sections {
-        user.read_section(section, None, true);
+        user.finished_section(section);
     }
     user.set_widgets(body.widgets);
+    user.init();
 }
 
 pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl IntoResponse {
@@ -227,15 +230,15 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
     };
 
     // Direct the user to a setup screen if the history is uninitialized.
-    let Some(history) = user.history() else {
+    if !user.is_init() {
         // Collect the entries a user may specify they have read
         // (from standard journal volumes).
         let volumes = index
             .volumes()
-            .filter(|v| v.content_type() == data::ContentType::Journal)
+            .filter(|v| v.kind() == volume::Kind::Journal)
             .map(|v| {
                 let entries = v
-                    .entries(&index)
+                    .entries()
                     .map(|e| html::setup::Entry {
                         id: e.id().to_owned(),
                         title: e.title().to_owned(),
@@ -249,7 +252,7 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
             })
             .collect();
         return html::setup(&headers, volumes);
-    };
+    }
 
     // Initialize homepage widgets.
     let mut widgets = Vec::new();
@@ -259,13 +262,10 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
         let mut sections: Vec<_> = index
             .sections()
             .filter(|s| {
-                let parent_entry = index.entry(s.parent_entry_id()).unwrap();
-                index
-                    .volume(parent_entry.parent_volume_id())
-                    .unwrap()
-                    .content_type()
-                    == data::ContentType::Journal
-                    && s.status() == data::ContentStatus::Complete
+                let parent_entry = s.parent_entry();
+                let parent_volume = parent_entry.parent_volume();
+                parent_volume.kind() == volume::Kind::Journal
+                    && s.status() == section::Status::Complete
             })
             .collect();
 
@@ -284,42 +284,32 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
         let recents = sections[..10.min(sections.len())]
             .iter()
             .map(|section| {
-                let parent_entry = index.entry(section.parent_entry_id()).unwrap();
-                let in_entry = parent_entry
-                    .section_ids()
+                let parent_entry = section.parent_entry();
+                let in_entry = section.index_in_parent();
+                let previous =
+                    (in_entry > 0).then(|| parent_entry.sections().nth(in_entry - 1).unwrap());
+                let read = user
+                    .history()
                     .iter()
-                    .position(|s| s == section.id())
-                    .unwrap();
-                let previous = (in_entry > 0).then(|| {
-                    let previous_section = parent_entry.section_ids()[in_entry - 1];
-                    let previous_description = index
-                        .section(previous_section)
-                        .unwrap()
-                        .description()
-                        .to_owned();
-                    (previous_section, previous_description)
-                });
-                let read = history
-                    .iter()
-                    .find(|h| h.section_id() == *section.id())
-                    .map(|h| h.timestamp());
-                let parent_volume = index.volume(parent_entry.parent_volume_id()).unwrap();
+                    .find(|(s, _)| s.id() == section.id())
+                    .and_then(|(_, h)| h.timestamp());
+                let parent_volume = parent_entry.parent_volume();
                 let parent_volume = (
                     parent_volume.title().to_owned(),
-                    parent_entry.parent_volume_index(),
-                    parent_volume.volume_count(),
+                    parent_entry.parent_volume_part(),
+                    parent_volume.parts_count(),
                 );
 
                 html::home::RecentSection {
-                    id: *section.id(),
+                    id: section.id(),
                     parent_volume,
                     parent_entry: parent_entry.title().to_owned(),
                     in_entry: (in_entry + 1, parent_entry.section_ids().len()),
-                    date: data::date_naive(&section.date()),
-                    previous,
+                    date: section.date().format("%Y-%m-%d").to_string(),
+                    previous: previous.map(|s| (s.id(), s.description().to_owned())),
                     description: section.description().to_owned(),
                     summary: section.summary().to_owned(),
-                    length: section.length_str(),
+                    length: section.length_string(),
                     read,
                 }
             })
@@ -338,10 +328,10 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
     let library_widget = || {
         let volumes = index
             .volumes()
-            .filter(|v| v.content_type() == data::ContentType::Journal)
+            .filter(|v| v.kind() == volume::Kind::Journal)
             .map(|v| html::home::LibraryVolume {
                 title: v.title().to_owned(),
-                id: v.id().clone(),
+                id: v.id().to_owned(),
                 subtitle: v.subtitle().map(|s| s.to_owned()),
                 entry_count: v.entry_ids().len(),
             })
@@ -356,13 +346,10 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
     let extras_widget = || {
         let volumes = index
             .volumes()
-            .filter(|v| {
-                v.content_type() != data::ContentType::Journal
-                    && v.content_type() != data::ContentType::Featured
-            })
+            .filter(|v| v.kind() != volume::Kind::Journal && v.kind() != volume::Kind::Featured)
             .map(|v| html::home::LibraryVolume {
                 title: v.title().to_owned(),
-                id: v.id().clone(),
+                id: v.id().to_owned(),
                 subtitle: v.subtitle().map(|s| s.to_owned()),
                 entry_count: v.entry_ids().len(),
             })
@@ -375,31 +362,23 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
     };
 
     let last_widget = || {
-        let mut history: Vec<_> = history.iter().collect();
-        history.sort_by(data::history_sorter);
-        let section = history.iter().find(|h| h.progress() > 0).and_then(|h| {
-            let section = index.section(h.section_id());
-            section.map(|s| {
-                let entry = index.entry(s.parent_entry_id()).unwrap();
-                let index = entry
-                    .section_ids()
-                    .iter()
-                    .position(|id| id == s.id())
-                    .expect(&format!(
-                        "section {} not found in parent entry {}",
-                        s.id(),
-                        entry.id()
-                    ));
+        let section = user
+            .history()
+            .iter()
+            .filter_map(|(s, h)| h.progress().map(|p| (s, p)))
+            .next()
+            .map(|(s, p)| {
+                let entry = s.parent_entry();
+                let index = s.index_in_parent();
                 html::home::LastSection {
                     entry: entry.title().to_owned(),
                     summary: s.summary().to_owned(),
-                    timestamp: h.timestamp(),
-                    id: *s.id(),
-                    index: (index, entry.section_ids().len()),
-                    progress: (h.progress(), s.lines()),
+                    timestamp: p.1,
+                    id: s.id(),
+                    index: (index, entry.section_count()),
+                    progress: (p.0, s.lines()),
                 }
-            })
-        });
+            });
 
         html::home::LastWidget { section }
     };
@@ -407,12 +386,12 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
     let random_widget = || {
         // TODO make random.
 
-        let wrap_entry = |entry: &data::EntryWrapper| {
-            let volume = index.volume(entry.parent_volume_id()).unwrap();
-            let volume_part = (volume.volume_count() > 1).then_some(entry.parent_volume_index());
+        let wrap_entry = |entry: &Entry| {
+            let volume = entry.parent_volume();
+            let volume_part = (volume.parts_count() > 1).then_some(entry.parent_volume_part());
 
             html::home::RandomEntry {
-                id: entry.id().clone(),
+                id: entry.id().to_owned(),
                 summary: entry.summary().to_owned(),
                 title: entry.title().to_owned(),
                 volume: volume.title().to_owned(),
@@ -422,85 +401,55 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> impl Int
 
         let unstarted_entries: Vec<_> = index
             .entries()
-            .filter(|e| {
-                // Entry must have complete sections.
-                let has_complete_section = e
-                    .section_ids()
-                    .iter()
-                    .any(|&s| index.section(s).unwrap().status() == data::ContentStatus::Complete);
-                if !has_complete_section {
-                    return false;
-                }
-
-                // Filter for entries of which the user has not started a single section.
-                !e.section_ids()
-                    .iter()
-                    .any(|&s| history.iter().any(|h| h.section_id() == s))
-            })
+            .filter(|e| matches!(user.entry_progress(&e), EntryProgress::Unstarted))
             .collect();
-        if let Some(entry) = unstarted_entries.last() {
-            return html::home::RandomWidget::Unstarted(wrap_entry(&entry));
+        if !unstarted_entries.is_empty() {
+            let entry =
+                &unstarted_entries[rand::thread_rng().gen_range(0..unstarted_entries.len())];
+            return html::home::RandomWidget::Unstarted(wrap_entry(entry));
         }
 
         let unfinished_entries: Vec<_> = index
             .entries()
-            .by_ref()
             .filter_map(|e| {
-                // Filter for entries of which there exists a section the user has not finished.
-                // Collect the history entry when that section is found.
-                e.section_ids()
-                    .iter()
-                    .map(|s| *s)
-                    .enumerate()
-                    .filter_map(|(i, s)| {
-                        // Get the history entry for the first unfinished section
-                        // or if the section doesn't exist.
-                        let history_entry = history.iter().find(|h| h.section_id() == s);
-                        let progress = match history_entry {
-                            Some(h) => (!h.ever_finished()).then_some(h.progress()),
-                            None => Some(0),
-                        };
-
-                        progress.map(|p| (e.clone(), i, s, p))
-                    })
-                    .next()
+                if let EntryProgress::InSection {
+                    section_id,
+                    section_index,
+                    progress,
+                    ..
+                } = user.entry_progress(&e)
+                {
+                    Some((e, section_id, section_index, progress))
+                } else {
+                    None
+                }
             })
             .collect();
         if let Some(entry) = unfinished_entries.last() {
             return html::home::RandomWidget::Unfinished {
                 entry: wrap_entry(&entry.0),
-                section_id: entry.2,
-                section_index: entry.1,
+                section_id: entry.1,
+                section_index: entry.2,
                 progress: entry.3,
             };
         }
 
-        let read_again = index
+        let mut read_again: Vec<_> = index
             .entries()
             .filter_map(|e| {
-                // Entry must have complete sections.
-                let has_complete_section = e
-                    .section_ids()
-                    .iter()
-                    .any(|&s| index.section(s).unwrap().status() == data::ContentStatus::Complete);
-
-                has_complete_section.then(|| {
-                    let last_read = history
-                        .iter()
-                        .filter(|h| e.section_ids().contains(&h.section_id()))
-                        .map(|h| h.timestamp())
-                        .max()
-                        .expect(
-                            "this point should have been reached only if all sections have been read",
-                        );
-                    (e, last_read)
-                })
+                if let EntryProgress::Finished { last_read } = user.entry_progress(&e) {
+                    Some((e, last_read))
+                } else {
+                    None
+                }
             })
-            .max_by_key(|&(_, last_read)| last_read)
-            .expect("no entries");
+            .collect();
+        read_again.sort_by_key(|e| e.1);
+        let entry = &read_again[rand::thread_rng().gen_range(0..read_again.len().min(10))];
+
         html::home::RandomWidget::ReadAgain {
-            entry: wrap_entry(&read_again.0),
-            last_read: read_again.1,
+            entry: wrap_entry(&entry.0),
+            last_read: entry.1,
         }
     };
 
@@ -528,14 +477,14 @@ pub async fn preferences(
 ) {
     let mut index = state.index.lock().unwrap();
     let user = get_cookie(&headers, "edat_user").unwrap();
-    let mut user = index.user_mut(user).unwrap();
+    let mut user = index.user_mut(user.to_owned()).unwrap();
     for (k, v) in body {
         match v {
             Some(v) => {
-                user.preferences_mut().insert(k, v);
+                user.set_preference(k, v);
             }
             None => {
-                user.preferences_mut().remove(&k);
+                user.remove_preference(&k);
             }
         }
     }
@@ -568,17 +517,17 @@ fn static_file(folder: &str, file_name: String, content_type: &'static str) -> R
     }
 }
 
-fn login_check<'a>(
+fn login_check<'index>(
     headers: &HeaderMap,
-    index: &'a data::Index,
-) -> Result<data::UserWrapper<'a>, maud::Markup> {
+    index: &'index Index,
+) -> Result<User<'index>, maud::Markup> {
     let err = || html::login(headers);
 
     let Some(username) = get_cookie(headers, "edat_user") else {
         return Err(err());
     };
 
-    index.users().find(|u| u.id() == username).ok_or_else(err)
+    index.user(username.to_owned()).map_err(|_| err())
 }
 
 pub fn get_cookie<'a>(headers: &'a HeaderMap, key: &str) -> Option<&'a str> {
@@ -592,13 +541,13 @@ pub async fn terminal(headers: HeaderMap, State(state): State<AppState>) -> maud
         Ok(user) => user,
         Err(html) => return html,
     };
-    html::terminal(&headers, user.privilege() == data::UserPrivilege::Owner)
+    html::terminal(&headers, user.privilege() == user::Privilege::Owner)
 }
 
 mod cmd {
     use serde::Deserialize;
 
-    use crate::data;
+    use crate::data::*;
 
     #[derive(Deserialize)]
     pub enum Body {
@@ -616,7 +565,7 @@ mod cmd {
             date: String,
         },
         SetNewSection {
-            position: data::Position<String, u32>,
+            position: Position<String, u32>,
             heading: String,
             description: String,
             summary: String,
@@ -627,11 +576,11 @@ mod cmd {
         },
         MoveSection {
             id: u32,
-            position: data::Position<String, u32>,
+            position: Position<String, u32>,
         },
         SectionStatus {
             id: u32,
-            status: data::ContentStatus,
+            status: section::Status,
         },
         GetEntry {
             id: String,
@@ -645,7 +594,7 @@ mod cmd {
         },
         SetNewEntry {
             title: String,
-            position: data::Position<(String, usize), String>,
+            position: Position<(String, usize), String>,
             description: String,
             summary: String,
         },
@@ -654,7 +603,7 @@ mod cmd {
         },
         MoveEntry {
             id: String,
-            position: data::Position<(String, usize), String>,
+            position: Position<(String, usize), String>,
         },
         GetVolume {
             id: String,
@@ -666,7 +615,7 @@ mod cmd {
             subtitle: String,
         },
         SetNewVolume {
-            position: data::Position<(), String>,
+            position: Position<(), String>,
             title: String,
             subtitle: String,
         },
@@ -675,11 +624,11 @@ mod cmd {
         },
         MoveVolume {
             id: String,
-            position: data::Position<(), String>,
+            position: Position<(), String>,
         },
         VolumeContentType {
             id: String,
-            content_type: data::ContentType,
+            kind: volume::Kind,
         },
         GetUser {
             id: String,
@@ -694,12 +643,9 @@ mod cmd {
             last_name: String,
         },
         NewUser,
-        DeleteUser {
-            id: String,
-        },
         UserPrivilege {
             id: String,
-            privilege: data::UserPrivilege,
+            privilege: user::Privilege,
         },
         AddUserCode {
             id: String,
@@ -728,7 +674,7 @@ mod cmd {
         },
         InitUser {
             id: String,
-        }
+        },
     }
 }
 
@@ -742,49 +688,36 @@ pub async fn cmd(
 
     let user = get_cookie(&headers, "edat_user").ok_or(html::terminal::unauthorized())?;
 
-    fn or_terminal_error<T>(
-        option: Option<T>,
-        category: &str,
-        id: impl Display,
-    ) -> Result<T, maud::Markup> {
-        option.ok_or_else(|| html::terminal::error(category, id))
-    }
-
-    fn validate<T>(position_result: Result<T, data::InvalidReference>) -> Result<T, maud::Markup> {
-        use data::InvalidReference as I;
-        position_result.map_err(|err| match err {
-            I::Section(id) => html::terminal::error("section", id),
-            I::Entry(id) => html::terminal::error("entry", id),
-            I::Volume(id) => html::terminal::error("volume", id),
+    fn map_err_html<T>(result: DataResult<T>) -> Result<T, maud::Markup> {
+        result.map_err(|err| match err {
+            DataError::DuplicateId(id) => terminal::duplicate(id),
+            DataError::MissingResource(kind, id) => terminal::missing(kind, id),
         })
     }
 
-    fn user_info(index: &data::Index, user: data::UserWrapper) -> terminal::UserInfo {
+    fn user_info(user: User) -> terminal::UserInfo {
         let codes = user.codes().join(" ");
 
         // Transform the list of read sections into a list of read entries (and their date).
-        let mut history: Vec<(String, i64)> = Vec::new();
-        if let Some(user_history) = user.history() {
-            for user_history_entry in user_history {
-                let section = index.section(user_history_entry.section_id()).unwrap();
-                let parent_entry = section.parent_entry_id();
-                let history_entry = history.iter_mut().find(|h| h.0 == parent_entry);
-                match history_entry {
-                    Some(history_entry) => {
-                        history_entry.1 = history_entry.1.max(user_history_entry.timestamp())
-                    }
-                    None => history.push((parent_entry.to_owned(), user_history_entry.timestamp())),
+        let mut entry_history = IndexMap::new();
+        for (s, h) in user.history() {
+            if let Some(timestamp) = h.timestamp() {
+                if let Some(entry) = entry_history.get_mut(s.parent_entry_id()) {
+                    *entry = std::cmp::max(*entry, timestamp);
+                } else {
+                    entry_history.insert(s.parent_entry_id().to_owned(), timestamp);
                 }
             }
         }
-        let mut history: Vec<_> = history
+        entry_history.sort_by_cached_key(|_, &t| t);
+        let history = entry_history
             .into_iter()
-            .map(|h| terminal::UserHistoryEntry {
-                entry: h.0,
-                date: h.1,
+            .map(|(id, timestamp)| terminal::UserHistoryEntry {
+                entry: id,
+                timestamp,
             })
             .collect();
-        history.sort_by(|a, b| b.date.cmp(&a.date));
+
         let preferences = user
             .preferences()
             .iter()
@@ -805,9 +738,9 @@ pub async fn cmd(
         }
     }
 
-    fn volume_info(index: &data::Index, volume: data::VolumeWrapper) -> terminal::VolumeInfo {
+    fn volume_info(volume: Volume) -> terminal::VolumeInfo {
         let entries = volume
-            .entries(&index)
+            .entries()
             .map(|e| terminal::VolumeEntry {
                 id: e.id().to_owned(),
                 description: e.description().to_owned(),
@@ -816,17 +749,20 @@ pub async fn cmd(
         terminal::VolumeInfo {
             id: volume.id().to_owned(),
             title: volume.title().to_owned(),
-            subtitle: volume.subtitle().unwrap_or("").to_owned(),
+            subtitle: volume
+                .subtitle()
+                .map(|s| s.clone())
+                .unwrap_or("".to_owned()),
             owner: volume.owner_id().to_owned(),
-            content_type: format!("{:?}", volume.content_type()),
+            content_type: format!("{:?}", volume.kind()),
             entries,
-            volume_count: volume.volume_count(),
+            volume_count: volume.parts_count(),
         }
     }
 
-    fn entry_info(index: &data::Index, entry: data::EntryWrapper) -> terminal::EntryInfo {
+    fn entry_info(entry: Entry) -> terminal::EntryInfo {
         let sections = entry
-            .sections(&index)
+            .sections()
             .map(|s| terminal::EntrySection {
                 id: s.id().to_owned(),
                 description: s.description().to_owned(),
@@ -840,19 +776,15 @@ pub async fn cmd(
             author: entry.author_id().to_owned(),
             parent_volume: (
                 entry.parent_volume_id().to_owned(),
-                entry.parent_volume_index(),
+                entry.parent_volume_part(),
             ),
             sections,
         }
     }
 
-    fn section_info(index: &data::Index, section: data::SectionWrapper) -> terminal::SectionInfo {
-        let parent_entry = index.entry(section.parent_entry_id()).unwrap();
-        let in_entry = parent_entry
-            .section_ids()
-            .iter()
-            .position(|s| s == section.id())
-            .unwrap();
+    fn section_info(section: Section) -> terminal::SectionInfo {
+        let parent_entry = section.parent_entry();
+        let in_entry = section.index_in_parent();
         let perspectives = section
             .perspective_ids()
             .iter()
@@ -860,22 +792,26 @@ pub async fn cmd(
             .collect::<Vec<_>>()
             .join(" ");
         let comments = section
-            .comments()
+            .threads()
             .iter()
+            .flat_map(|t| t.comments.iter())
             .map(|c| terminal::SectionComment {
-                author: c.author_id().to_owned(),
-                contents: c.contents().to_owned(),
-                timestamp: c.timestamp(),
+                author: c.author.id().to_owned(),
+                contents: c.content.last().unwrap().to_owned(),
+                timestamp: c.timestamp,
             })
             .collect();
         terminal::SectionInfo {
-            id: *section.id(),
-            heading: section.heading().unwrap_or("").to_owned(),
+            id: section.id(),
+            heading: section
+                .heading()
+                .map(|s| s.clone())
+                .unwrap_or("".to_owned()),
             description: section.description().to_owned(),
             summary: section.summary().to_owned(),
-            date: section.raw_date().to_owned(),
+            date: section.date().format("%Y-%m-%d").to_string(),
             parent_entry: section.parent_entry_id().to_owned(),
-            in_entry: (in_entry, parent_entry.section_ids().len()),
+            in_entry: (in_entry, parent_entry.section_count()),
             length: section.length(),
             status: format!("{:?}", section.status()),
             perspectives,
@@ -883,10 +819,15 @@ pub async fn cmd(
         }
     }
 
-    fn volumes(index: &data::Index) -> terminal::Volumes {
+    fn volumes(index: &Index) -> terminal::Volumes {
         let volumes = index
             .volumes()
-            .map(|v| (v.id().clone(), v.subtitle().unwrap_or("").to_owned()))
+            .map(|v| {
+                (
+                    v.id().to_owned(),
+                    v.subtitle().map(|s| s.clone()).unwrap_or("".to_owned()),
+                )
+            })
             .collect();
         terminal::Volumes(volumes)
     }
@@ -894,142 +835,81 @@ pub async fn cmd(
     use cmd::Body as B;
     Ok(match body {
         B::AddUserCode { id, code } => {
-            // Change the user's codes.
-            {
-                let user = index.user_mut(&id);
-                let mut user = or_terminal_error(user, "user", &id)?;
-                user.add_code(code.to_lowercase());
-            }
-
-            // Then send the changed data.
-            let user = index.user(&id).unwrap();
-            terminal::user(user_info(&index, user))
+            let mut user = map_err_html(index.user_mut(id))?;
+            user.add_code(code.to_lowercase());
+            terminal::user(user_info(user.as_immut()))
         }
         B::DeleteEntry { id } => {
-            // Dump entry data.
-            let entry = index.entry(&id);
-            let entry = or_terminal_error(entry, "entry", &id)?;
-            let now = Utc::now().timestamp();
-            let mut dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
-            let mut data = File::open(format!("content/entries/{}.json", id)).unwrap();
-            let mut data_contents = String::new();
-            data.read_to_string(&mut data_contents).unwrap();
-            dump.write_all(data_contents.as_bytes()).unwrap();
-
-            // Remove entry from index and parent volume.
-            let parent_volume_id = entry.parent_volume_id().to_owned();
-            index.remove_entry(&id);
-            let parent_volume = index.volume(&parent_volume_id);
-            let parent_volume = or_terminal_error(parent_volume, "volume", parent_volume_id)?;
-            terminal::volume(volume_info(&index, parent_volume))
+            let entry = map_err_html(index.entry_mut(id))?;
+            let parent_volume = entry.parent_volume_id().to_owned();
+            entry.remove();
+            let volume = index.volume(parent_volume).unwrap();
+            terminal::volume(volume_info(volume))
         }
         B::DeleteSection { id } => {
-            // Dump section contents.
-            let section = index.section(id);
-            let section = or_terminal_error(section, "section", id)?;
-            let now = Utc::now().timestamp();
-            let mut dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
-            let mut data = File::open(format!("content/sections/{}.json", id)).unwrap();
-            let mut data_contents = String::new();
-            data.read_to_string(&mut data_contents).unwrap();
-            let mut text = File::open(format!("content/sections/{}.txt", id)).unwrap();
-            let mut text_contents = String::new();
-            text.read_to_string(&mut text_contents).unwrap();
-            dump.write_all(data_contents.as_bytes()).unwrap();
-            dump.write_all(text_contents.as_bytes()).unwrap();
-
-            // Remove section from index and parent volume.
-            let parent_entry_id = section.parent_entry_id().to_owned();
-            index.remove_section(id);
-            let parent_entry = index.entry(&parent_entry_id);
-            let parent_entry = or_terminal_error(parent_entry, "entry", parent_entry_id)?;
-            terminal::entry(entry_info(&index, parent_entry))
-        }
-        B::DeleteUser { id } => {
-            // "Removing the user" just deletes their codes.
-            let user = index.user(&id);
-            or_terminal_error(user, "user", &id)?;
-            index.remove_user(&id);
-
-            // Then send the changed data.
-            let user = index.user(&id).unwrap();
-            terminal::user(user_info(&index, user))
+            let section = map_err_html(index.section_mut(id))?;
+            let parent_entry = section.parent_entry_id().to_owned();
+            section.remove();
+            let entry = index.entry(parent_entry).unwrap();
+            terminal::entry(entry_info(entry))
         }
         B::DeleteVolume { id } => {
-            // Dump volume data.
-            let volume = index.volume(&id);
-            or_terminal_error(volume, "volume", &id)?;
-            let now = Utc::now().timestamp();
-            let mut dump = File::create(format!("content/deleted/{}-{}", id, now)).unwrap();
-            let mut data = File::open(format!("content/volumes/{}.json", id)).unwrap();
-            let mut data_contents = String::new();
-            data.read_to_string(&mut data_contents).unwrap();
-            dump.write_all(data_contents.as_bytes()).unwrap();
-
-            // Remove volume from index.
-            index.remove_volume(&id);
+            let volume = map_err_html(index.volume_mut(id))?;
+            volume.remove();
             terminal::volumes(volumes(&index))
         }
         B::GetContent { id } => {
-            let section = index.section(id);
-            or_terminal_error(section, "section", &id)?;
-            let mut section_file = File::open(format!("content/sections/{}.txt", id)).unwrap();
-            let mut contents = String::new();
-            section_file.read_to_string(&mut contents).unwrap();
-            terminal::contents(id, contents)
+            let section = map_err_html(index.section(id))?;
+            let content = section.content();
+            terminal::content(id, content)
         }
         B::GetEntry { id } => {
-            let entry = index.entry(&id);
-            let entry = or_terminal_error(entry, "entry", &id)?;
-            terminal::entry(entry_info(&index, entry))
+            let entry = map_err_html(index.entry(id))?;
+            terminal::entry(entry_info(entry))
         }
         B::GetIntro { id } => match id {
             None => {
-                let mut intro_file = File::open("content/edat.intro").unwrap();
-                let mut contents = String::new();
-                intro_file.read_to_string(&mut contents).unwrap();
-                terminal::contents("edat", contents)
+                let content = fs::read_to_string("content/edat.intro").unwrap();
+                terminal::content("edat", content)
             }
             Some(id) => {
-                let volume = index.volume(&id);
-                or_terminal_error(volume, "volume", &id)?;
-                let mut intro_file = File::open(format!("content/volumes/{}.intro", id)).unwrap();
-                let mut contents = String::new();
-                intro_file.read_to_string(&mut contents).unwrap();
-                terminal::contents(id, contents)
+                let volume = map_err_html(index.volume(id.clone()))?;
+                let content = volume.intro();
+                terminal::content(id, content)
             }
         },
         B::GetSection { id } => {
-            let section = index.section(id);
-            let section = or_terminal_error(section, "section", &id)?;
-            terminal::section(section_info(&index, section))
+            let section = map_err_html(index.section(id))?;
+            terminal::section(section_info(section))
         }
         B::GetUser { id } => {
-            let user = index.user(&id);
-            let user = or_terminal_error(user, "user", &id)?;
-            terminal::user(user_info(&index, user))
+            let user = map_err_html(index.user(id))?;
+            terminal::user(user_info(user))
         }
         B::GetVolume { id } => {
-            let volume = index.volume(&id);
-            let volume = or_terminal_error(volume, "volume", &id)?;
-            terminal::volume(volume_info(&index, volume))
+            let volume = map_err_html(index.volume(id))?;
+            terminal::volume(volume_info(volume))
         }
         B::Images => terminal::images(),
-        B::InitUser { id } => todo!(),
+        B::InitUser { id } => {
+            let mut user = map_err_html(index.user_mut(id))?;
+            user.init();
+            terminal::user(user_info(user.as_immut()))
+        }
         B::MoveEntry { id, position } => {
-            validate(index.move_entry(&id, position))?;
-            let entry = index.entry(&id).unwrap();
-            terminal::entry(entry_info(&index, entry))
+            let mut entry = map_err_html(index.entry_mut(id))?;
+            map_err_html(entry.move_to(position))?;
+            terminal::entry(entry_info(entry.as_immut()))
         }
         B::MoveSection { id, position } => {
-            validate(index.move_section(id, position))?;
-            let section = index.section(id).unwrap();
-            terminal::section(section_info(&index, section))
+            let mut section = map_err_html(index.section_mut(id))?;
+            map_err_html(section.move_to(position))?;
+            terminal::section(section_info(section.as_immut()))
         }
         B::MoveVolume { id, position } => {
-            validate(index.move_volume(&id, position))?;
-            let volume = index.volume(&id).unwrap();
-            terminal::volume(volume_info(&index, volume))
+            let mut volume = map_err_html(index.volume_mut(id))?;
+            map_err_html(volume.move_to(position))?;
+            terminal::volume(volume_info(volume.as_immut()))
         }
         B::NextSectionId => return Ok(Json(index.next_section_id()).into_response()),
         B::NewEntry => terminal::edit_entry(None),
@@ -1037,39 +917,19 @@ pub async fn cmd(
         B::NewUser => terminal::edit_user(None),
         B::NewVolume => terminal::edit_volume(None),
         B::RemoveUserCode { id, code } => {
-            {
-                let user = index.user_mut(&id);
-                let mut user = or_terminal_error(user, "user", &id)?;
-                user.remove_code(&code.to_lowercase());
-            }
-            let user = index.user(&id).unwrap();
-            terminal::user(user_info(&index, user))
+            let mut user = map_err_html(index.user_mut(id))?;
+            user.remove_code(&code.to_lowercase());
+            terminal::user(user_info(user.as_immut()))
         }
         B::SectionStatus { id, status } => {
-            {
-                let section = index.section_mut(id);
-                let mut section = or_terminal_error(section, "section", id)?;
-                section.set_status(status);
-            }
-            let section = index.section(id).unwrap();
-            terminal::section(section_info(&index, section))
+            let mut section = map_err_html(index.section_mut(id))?;
+            section.set_status(status);
+            terminal::section(section_info(section.as_immut()))
         }
-        B::SetContent {
-            id,
-            content: contents,
-        } => {
-            // Check section exists.
-            let section = index.section_mut(id);
-            let section = or_terminal_error(section, "section", &id)?;
-
-            let contents = data::process_text(&contents);
-            let mut contents_file = File::create(format!("content/sections/{}.txt", id)).unwrap();
-            contents_file.write_all(contents.as_bytes()).unwrap();
-
-            // Force a save.
-            drop(section);
-
-            terminal::contents(id, contents)
+        B::SetContent { id, content } => {
+            let mut section = map_err_html(index.section_mut(id))?;
+            section.set_content(&content);
+            terminal::section(section_info(section.as_immut()))
         }
         B::SetEntry {
             id,
@@ -1077,41 +937,21 @@ pub async fn cmd(
             description,
             summary,
         } => {
-            let id = validate(index.set_entry_title(&id, title))?;
-            {
-                let entry = index.entry_mut(&id);
-                let mut entry = or_terminal_error(entry, "entry", &id)?;
-                entry.set_description(description);
-                entry.set_summary(summary);
-            }
-            let entry = index.entry(&id).unwrap();
-            terminal::entry(entry_info(&index, entry))
+            let mut entry = map_err_html(index.entry_mut(id))?;
+            map_err_html(entry.set_title(&title))?;
+            entry.set_description(&description);
+            entry.set_summary(&summary);
+            terminal::entry(entry_info(entry.as_immut()))
         }
-        B::SetIntro {
-            id,
-            content: contents,
-        } => {
-            let (filename, volume) = match id {
-                None => ("content/edat.intro".to_owned(), None),
-                Some(ref id) => {
-                    // Verify volume exists.
-                    let volume = index.volume_mut(id);
-                    let volume = or_terminal_error(volume, "volume", id)?;
-
-                    (format!("content/volumes/{id}.intro"), Some(volume))
-                }
-            };
-            let contents = data::process_text(&contents);
-            let mut intro_file = File::create(filename).unwrap();
-            intro_file.write_all(contents.as_bytes()).unwrap();
-
-            // Force a save.
-            if let Some(volume) = volume {
-                // Force save.
-                drop(volume);
+        B::SetIntro { id, content } => {
+            if let Some(id) = id {
+                let mut volume = map_err_html(index.volume_mut(id))?;
+                volume.set_intro(&content);
+                terminal::volume(volume_info(volume.as_immut()))
+            } else {
+                fs::write("content/edat.intro", &content).unwrap();
+                terminal::content("edat", content)
             }
-
-            terminal::contents(id.unwrap_or("edat".to_owned()), contents)
         }
         B::SetNewEntry {
             title,
@@ -1119,10 +959,14 @@ pub async fn cmd(
             description,
             summary,
         } => {
-            let id =
-                validate(index.new_entry(title, description, summary, user.to_owned(), position))?;
-            let entry = index.entry(&id).unwrap();
-            terminal::entry(entry_info(&index, entry))
+            let entry = map_err_html(index.create_entry(
+                &title,
+                &description,
+                &summary,
+                user.to_owned(),
+                position,
+            ))?;
+            terminal::entry(entry_info(entry.as_immut()))
         }
         B::SetNewSection {
             position,
@@ -1133,29 +977,34 @@ pub async fn cmd(
         } => {
             let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d")
                 .map_err(|_| terminal::bad_date(&date))?;
-            let heading = if heading == "" { None } else { Some(heading) };
-            let id = validate(index.new_section(heading, description, summary, date, position))?;
-            let section = index.section(id).unwrap();
-            terminal::section(section_info(&index, section))
+            let section = map_err_html(index.create_section(
+                (!heading.is_empty()).then_some(&heading),
+                &description,
+                &summary,
+                date,
+                position,
+            ))?;
+            terminal::section(section_info(section.as_immut()))
         }
         B::SetNewUser {
             first_name,
             last_name,
         } => {
-            index.new_user(first_name.clone(), last_name.clone());
-            let user_id = format!("{}{}", first_name.to_lowercase(), last_name.to_lowercase());
-            let user = index.user(&user_id).unwrap();
-            terminal::user(user_info(&index, user))
+            let user = map_err_html(index.create_user(first_name, last_name))?;
+            terminal::user(user_info(user.as_immut()))
         }
         B::SetNewVolume {
             position,
             title,
             subtitle,
         } => {
-            let subtitle = if subtitle == "" { None } else { Some(subtitle) };
-            let id = validate(index.new_volume(title, subtitle, user.to_owned(), position))?;
-            let volume = index.volume(&id).unwrap();
-            terminal::volume(volume_info(&index, volume))
+            let volume = map_err_html(index.create_volume(
+                &title,
+                (!subtitle.is_empty()).then_some(&subtitle),
+                user.to_owned(),
+                position,
+            ))?;
+            terminal::volume(volume_info(volume.as_immut()))
         }
         B::SetSection {
             id,
@@ -1164,72 +1013,45 @@ pub async fn cmd(
             summary,
             date,
         } => {
-            {
-                let heading = if heading == "" { None } else { Some(heading) };
-                let section = index.section_mut(id);
-                let mut section = or_terminal_error(section, "section", &id)?;
-                section.set_heading(heading);
-                section.set_description(description);
-                section.set_summary(summary);
-                let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d")
-                    .map_err(|_| terminal::bad_date(&date))?;
-                section.set_date(date);
-            }
-            let section = index.section(id).unwrap();
-            terminal::section(section_info(&index, section))
+            let date = NaiveDate::parse_from_str(&date, "%Y-%m-%d")
+                .map_err(|_| terminal::bad_date(&date))?;
+            let mut section = map_err_html(index.section_mut(id))?;
+            section.set_heading((!heading.is_empty()).then_some(&heading));
+            section.set_description(&description);
+            section.set_summary(&summary);
+            section.set_date(date);
+            terminal::section(section_info(section.as_immut()))
         }
         B::SetUser {
             id,
             first_name,
             last_name,
         } => {
-            let new_id = index.set_user_name(&id, first_name, last_name);
-            let new_id = or_terminal_error(new_id, "user", id)?;
-            let user = index.user(&new_id).unwrap();
-            terminal::user(user_info(&index, user))
+            let mut user = map_err_html(index.user_mut(id))?;
+            map_err_html(user.set_name(first_name, last_name))?;
+            terminal::user(user_info(user.as_immut()))
         }
         B::SetVolume {
             id,
             title,
             subtitle,
         } => {
-            let id = validate(index.set_volume_title(&id, title))?;
-            let subtitle = if subtitle == "" { None } else { Some(subtitle) };
-            {
-                let volume = index.volume_mut(&id);
-                let mut volume = or_terminal_error(volume, "volume", &id)?;
-                volume.set_subtitle(subtitle);
-            }
-
-            let volume = index.volume(&id).unwrap();
-            terminal::volume(volume_info(&index, volume))
+            let mut volume = map_err_html(index.volume_mut(id))?;
+            map_err_html(volume.set_title(&title))?;
+            volume.set_subtitle((!subtitle.is_empty()).then_some(&subtitle));
+            terminal::volume(volume_info(volume.as_immut()))
         }
         B::UserPrivilege { id, privilege } => {
-            {
-                let user = index.user_mut(&id);
-                let mut user = or_terminal_error(user, "user", &id)?;
-                user.set_privilege(privilege);
-            }
-            let user = index.user(&id).unwrap();
-            terminal::user(user_info(&index, user))
+            let mut user = map_err_html(index.user_mut(id))?;
+            user.set_privilege(privilege);
+            terminal::user(user_info(user.as_immut()))
         }
-        B::VolumeContentType { id, content_type } => {
-            {
-                let volume = index.volume_mut(&id);
-                let mut volume = or_terminal_error(volume, "volume", &id)?;
-                volume.set_content_type(content_type);
-            }
-            let volume = index.volume(&id).unwrap();
-            terminal::volume(volume_info(&index, volume))
+        B::VolumeContentType { id, kind } => {
+            let mut volume = map_err_html(index.volume_mut(id))?;
+            volume.set_kind(kind);
+            terminal::volume(volume_info(volume.as_immut()))
         }
-        B::Volumes => {
-            let volumes = index
-                .volumes()
-                .map(|v| (v.id().to_owned(), v.subtitle().unwrap_or("").to_owned()))
-                .collect();
-            let volumes = terminal::Volumes(volumes);
-            terminal::volumes(volumes)
-        }
+        B::Volumes => terminal::volumes(volumes(&index)),
     }
     .into_response())
 }

@@ -46,13 +46,13 @@ impl Index {
             })
             .collect();
 
-        let volumes: IndexMap<String, super::VolumeData> = index_file
+        let volumes: IndexMap<String, VolumeData> = index_file
             .volumes
             .into_iter()
             .map(|v| {
                 let volume = fs::read_to_string(format!("content/volumes/{v}.json"))
                     .expect(&format!("error reading volume {v} file"));
-                let mut volume: super::VolumeData =
+                let mut volume: VolumeData =
                     serde_json::from_str(&volume).expect(&format!("volume {v} invalid json"));
                 volume.search_index = search::Index::from_bytes(
                     &fs::read(format!("content/volumes/{v}.index"))
@@ -62,14 +62,14 @@ impl Index {
             })
             .collect();
 
-        let entries: HashMap<String, super::EntryData> = volumes
+        let entries: HashMap<String, EntryData> = volumes
             .values()
             .map(|v| v.entries.iter())
             .flatten()
             .map(|e| {
                 let entry = fs::read_to_string(format!("content/entries/{e}.json"))
                     .expect(&format!("error reading entry {e} file"));
-                let mut entry: super::EntryData =
+                let mut entry: EntryData =
                     serde_json::from_str(&entry).expect(&format!("entry {e} invalid json"));
                 entry.search_index = search::Index::from_bytes(
                     &fs::read(format!("content/entries/{e}.index"))
@@ -84,12 +84,12 @@ impl Index {
             .map(|e| e.sections.iter())
             .flatten()
             .map(|&s| {
-                let section = fs::read_to_string(format!("content/section/{s}.json"))
+                let section = fs::read_to_string(format!("content/sections/{s}.json"))
                     .expect(&format!("error reading section {s} file"));
-                let mut section: super::SectionData =
+                let mut section: SectionData =
                     serde_json::from_str(&section).expect(&format!("section {s} invalid json"));
                 section.search_index = search::Index::from_bytes(
-                    &fs::read(format!("content/section/{s}.index"))
+                    &fs::read(format!("content/sections/{s}.index"))
                         .expect(&format!("error reading section {s} index file")),
                 );
                 (s, section)
@@ -115,22 +115,38 @@ impl Index {
     }
 
     /// Get the user with the specified id.
-    pub fn user(&self, id: String) -> Option<super::User> {
-        self.users
-            .contains_key(&id)
-            .then_some(super::User { index: self, id })
+    pub fn user(&self, id: String) -> DataResult<User> {
+        if self.users.contains_key(&id) {
+            Ok(User { index: self, id })
+        } else {
+            Err(DataError::MissingResource("user", id))
+        }
+    }
+
+    /// Get all the users.
+    pub fn users(&self) -> impl Iterator<Item = User> {
+        self.users.iter().map(|(id, u)| User {
+            index: self,
+            id: id.clone(),
+        })
     }
 
     /// Get the user with the specified id for mutation.
-    pub fn user_mut(&mut self, id: String) -> Option<super::UserMut> {
-        self.users
-            .contains_key(&id)
-            .then_some(super::UserMut { index: self, id })
+    pub fn user_mut(&mut self, id: String) -> DataResult<UserMut> {
+        if self.users.contains_key(&id) {
+            Ok(UserMut { index: self, id })
+        } else {
+            Err(DataError::MissingResource("user", id))
+        }
     }
 
     /// Add a user.
-    pub fn create_user(&mut self, first_name: String, last_name: String) {
+    pub fn create_user(&mut self, first_name: String, last_name: String) -> DataResult<UserMut> {
+        // Make sure this id is not a duplicate.
         let id = format!("{}{}", first_name.to_lowercase(), last_name.to_lowercase());
+        if self.users.contains_key(&id) {
+            return Err(DataError::DuplicateId(id));
+        }
 
         let user = UserData {
             first_name,
@@ -143,41 +159,61 @@ impl Index {
             init: false,
         };
 
-        self.users.insert(id, user);
+        self.users.insert(id.clone(), user);
+
+        Ok(self.user_mut(id).unwrap())
     }
 
     /// Get the volume with the specified id.
-    pub fn volume(&self, id: String) -> Option<super::Volume> {
+    pub fn volume(&self, id: String) -> DataResult<Volume> {
         if self.volumes.contains_key(&id) {
-            Some(super::Volume { index: self, id })
-        } else {
-            // See if any volumes had the provided id as an old id.
-            self.volumes
-                .values()
-                .any(|e| e.old_ids.contains(&id))
-                .then(|| super::Volume { index: self, id })
+            return Ok(Volume { index: self, id });
         }
+
+        // See if any volumes have this as an old id.
+        for (actual_id, volume) in &self.volumes {
+            if volume.old_ids.contains(&id) {
+                return Ok(Volume {
+                    index: self,
+                    id: actual_id.clone(),
+                });
+            }
+        }
+
+        Err(DataError::MissingResource("volume", id))
+    }
+
+    /// Get all volumes.
+    pub fn volumes(&self) -> impl Iterator<Item = Volume> {
+        self.volumes.iter().map(|(id, v)| Volume {
+            index: self,
+            id: id.clone(),
+        })
     }
 
     /// Get the volume with the specified id for mutation.
-    pub fn volume_mut(&mut self, id: String) -> Option<super::VolumeMut> {
+    pub fn volume_mut(&mut self, id: String) -> DataResult<VolumeMut> {
         if self.volumes.contains_key(&id) {
-            Some(super::VolumeMut {
+            return Ok(VolumeMut {
                 index: self,
                 id,
                 exists: true,
-            })
-        } else {
-            // See if any volumes had the provided id as an old id.
-            self.volumes
-                .values()
-                .any(|e| e.old_ids.contains(&id))
-                .then(|| super::VolumeMut {
+            });
+        }
+
+        // See if any volumes have this as an old id.
+        for (actual_id, volume) in &self.volumes {
+            if volume.old_ids.contains(&id) {
+                let id = actual_id.clone();
+                return Ok(VolumeMut {
                     index: self,
                     id,
                     exists: true,
-                })
+                });
+            }
         }
+
+        Err(DataError::MissingResource("volume", id))
     }
 
     /// Add a volume.
@@ -185,25 +221,25 @@ impl Index {
     /// Returns the volume's id.
     pub fn create_volume(
         &mut self,
-        title: String,
-        subtitle: Option<String>,
-        owner: User,
-        position: Position<(), Volume>,
-    ) -> Result<String, DuplicateIdError<String>> {
+        title: &str,
+        subtitle: Option<&str>,
+        owner: String,
+        position: Position<(), String>,
+    ) -> DataResult<VolumeMut> {
         // Make sure this id is not a duplicate.
-        let id = create_id(&title);
+        let id = create_id(title);
         if self.volumes.contains_key(&id) {
-            return Err(DuplicateIdError(id));
+            return Err(DataError::DuplicateId(id));
         }
 
         // Get position.
-        let index = position.resolve(self);
+        let index = position.resolve(self)?;
 
         let volume = VolumeData {
-            title: process_text(&title),
+            title: process_text(title),
             old_ids: Vec::new(),
-            subtitle: subtitle.map(|s| process_text(&s)),
-            owner: owner.id().to_owned(),
+            subtitle: subtitle.map(|s| process_text(s)),
+            owner,
             content_type: volume::Kind::Journal,
             volume_count: 0,
             entries: Vec::new(),
@@ -219,69 +255,87 @@ impl Index {
         self.volumes.shift_insert(index, id.clone(), volume);
         self.save();
 
-        Ok(id)
+        Ok(self.volume_mut(id).unwrap())
     }
 
     /// Get the entry with the specified id.
-    pub fn entry(&self, id: String) -> Option<super::Entry> {
+    pub fn entry(&self, id: String) -> DataResult<Entry> {
         if self.entries.contains_key(&id) {
-            Some(super::Entry { index: self, id })
-        } else {
-            // See if any entries had the provided id as an old id.
-            self.entries
-                .values()
-                .any(|e| e.old_ids.contains(&id))
-                .then(|| super::Entry { index: self, id })
+            return Ok(Entry { index: self, id });
         }
+
+        // See if any entries have this as an old id.
+        for (actual_id, entry) in &self.entries {
+            if entry.old_ids.contains(&id) {
+                return Ok(Entry {
+                    index: self,
+                    id: actual_id.clone(),
+                });
+            }
+        }
+
+        Err(DataError::MissingResource("entry", id))
+    }
+
+    /// Get all entries.
+    pub fn entries(&self) -> impl Iterator<Item = Entry> {
+        self.entries.iter().map(|(id, e)| Entry {
+            index: self,
+            id: id.clone(),
+        })
     }
 
     /// Get the entry with the specified id for mutation.
-    pub fn entry_mut(&mut self, id: String) -> Option<super::EntryMut> {
+    pub fn entry_mut(&mut self, id: String) -> DataResult<EntryMut> {
         if self.entries.contains_key(&id) {
-            Some(super::EntryMut {
+            return Ok(EntryMut {
                 index: self,
                 id,
                 exists: true,
-            })
-        } else {
-            // See if any entries had the provided id as an old id.
-            self.entries
-                .values()
-                .any(|e| e.old_ids.contains(&id))
-                .then(|| super::EntryMut {
+            });
+        }
+
+        // See if any entries have this as an old id.
+        for (actual_id, entry) in &self.entries {
+            if entry.old_ids.contains(&id) {
+                let id = actual_id.clone();
+                return Ok(EntryMut {
                     index: self,
                     id,
                     exists: true,
-                })
+                });
+            }
         }
+
+        Err(DataError::MissingResource("entry", id))
     }
 
     /// Add an entry.
-    /// 
+    ///
     /// Returns the entry's id.
     pub fn create_entry(
         &mut self,
-        title: String,
-        description: String,
-        summary: String,
-        author: User,
-        position: Position<(Volume, usize), Entry>,
-    ) -> Result<String, DuplicateIdError<String>> {
+        title: &str,
+        description: &str,
+        summary: &str,
+        author: String,
+        position: Position<(String, usize), String>,
+    ) -> DataResult<EntryMut> {
         // Make sure this id is not a duplicate.
         let id = create_id(&title);
         if self.entries.contains_key(&id) {
-            return Err(DuplicateIdError(id));
+            return Err(DataError::DuplicateId(id));
         }
 
         // Get position.
-        let (mut parent_volume, parent_volume_part, index_in_parent) = position.resolve(self);
+        let (mut parent_volume, parent_volume_part, index_in_parent) = position.resolve(self)?;
 
         let entry = EntryData {
-            title: process_text(&title),
+            title: process_text(title),
             old_ids: Vec::new(),
-            description: process_text(&description),
-            summary: process_text(&summary),
-            author: author.id().to_owned(),
+            description: process_text(description),
+            summary: process_text(summary),
+            author,
             parent_volume: (parent_volume.id.to_owned(), parent_volume_part),
             sections: Vec::new(),
             search_index: search::Index::new(),
@@ -292,59 +346,74 @@ impl Index {
         File::create(format!("content/entries/{id}.index")).unwrap();
 
         // Insert into parent volume.
-        parent_volume.data_mut().entries.insert(index_in_parent, id.clone());
+        parent_volume
+            .data_mut()
+            .entries
+            .insert(index_in_parent, id.clone());
         drop(parent_volume);
-        
+
         // Insert into index.
         self.entries.insert(id.clone(), entry);
 
-        Ok(id)
+        Ok(self.entry_mut(id).unwrap())
     }
 
     /// Get the section with the specified id.
-    pub fn section(&self, id: u32) -> Option<super::Section> {
-        self.sections
-            .contains_key(&id)
-            .then_some(super::Section { index: self, id })
+    pub fn section(&self, id: u32) -> DataResult<Section> {
+        if self.sections.contains_key(&id) {
+            return Ok(Section { index: self, id });
+        } else {
+            Err(DataError::MissingResource("section", id.to_string()))
+        }
+    }
+
+    /// Get all sections.
+    pub fn sections(&self) -> impl Iterator<Item = Section> {
+        self.sections.iter().map(|(id, s)| Section {
+            index: self,
+            id: id.clone(),
+        })
     }
 
     /// Get the section with the specified id for mutation.
-    pub fn section_mut(&mut self, id: u32) -> Option<super::SectionMut> {
-        self.sections
-            .contains_key(&id)
-            .then_some(super::SectionMut {
+    pub fn section_mut(&mut self, id: u32) -> DataResult<SectionMut> {
+        if self.sections.contains_key(&id) {
+            return Ok(SectionMut {
                 index: self,
                 id,
                 exists: true,
-            })
+            });
+        } else {
+            Err(DataError::MissingResource("section", id.to_string()))
+        }
     }
 
     /// Add a section.
-    /// 
+    ///
     /// Returns the section's id.
     pub fn create_section(
         &mut self,
-        heading: Option<String>,
-        description: String,
-        summary: String,
+        heading: Option<&str>,
+        description: &str,
+        summary: &str,
         date: NaiveDate,
-        position: Position<Entry, Section>,
-    ) -> Result<u32, DuplicateIdError<u32>> {
+        position: Position<String, u32>,
+    ) -> DataResult<SectionMut> {
         let id = self.next_section_id;
         self.next_section_id += 1;
-        
+
         // Make sure this id is not a duplicate.
         if self.sections.contains_key(&id) {
-            return Err(DuplicateIdError(id));
+            return Err(DataError::DuplicateId(id.to_string()));
         }
 
         // Get position.
-        let (mut parent_entry, index_in_parent) = position.resolve(self);
+        let (mut parent_entry, index_in_parent) = position.resolve(self)?;
 
         let section = SectionData {
-            heading: heading.map(|h| process_text(&h)),
-            description: process_text(&description),
-            summary: process_text(&summary),
+            heading: heading.map(|h| process_text(h)),
+            description: process_text(description),
+            summary: process_text(summary),
             status: section::Status::Missing,
             date: date.format("%Y-%m-%d").to_string(),
             comments: Vec::new(),
@@ -363,10 +432,15 @@ impl Index {
         // Insert into parent entry.
         parent_entry.data_mut().sections.insert(index_in_parent, id);
         drop(parent_entry);
-        
+
         // Insert into index.
         self.sections.insert(id, section);
 
-        Ok(id)
+        Ok(self.section_mut(id).unwrap())
+    }
+
+    /// Get the id for the next created section.
+    pub fn next_section_id(&self) -> u32 {
+        self.next_section_id
     }
 }
