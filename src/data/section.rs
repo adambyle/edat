@@ -368,13 +368,14 @@ impl SectionMut<'_> {
         // Archive files.
         let now = Utc::now().timestamp();
         fs::rename(
-            format!("content/section/{}.json", &self.id),
-            format!("archive/section-{}-{now}", &self.id),
+            format!("content/sections/{}.json", &self.id),
+            format!("archived/section-{}-{now}", &self.id),
         );
         fs::rename(
-            format!("content/section/{}.txt", &self.id),
-            format!("archive/content-{}-{now}", &self.id),
+            format!("content/sections/{}.txt", &self.id),
+            format!("archived/content-{}-{now}", &self.id),
         );
+        fs::remove_file(format!("content/sections/{}.index", &self.id));
 
         // Prevent saving on drop.
         self.exists = false;

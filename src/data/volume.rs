@@ -120,15 +120,15 @@ macro_rules! immut_fns {
         /// Get wrappers around the entries in the volume, sorted by part.
         pub fn entries_by_part(&self) -> IndexMap<usize, Vec<Entry>> {
             let mut map = IndexMap::new();
-    
+
             for entry in self.entries() {
                 map.entry(entry.parent_volume_part())
                     .or_insert(Vec::new())
                     .push(entry);
             }
-    
+
             map.sort_unstable_keys();
-    
+
             map
         }
 
@@ -161,7 +161,10 @@ impl VolumeMut<'_> {
     }
 
     pub fn as_immut(&self) -> Volume {
-        Volume { index: &self.index, id: self.id.clone() }
+        Volume {
+            index: &self.index,
+            id: self.id.clone(),
+        }
     }
 
     immut_fns!();
@@ -179,18 +182,23 @@ impl VolumeMut<'_> {
                 return Err(DataError::DuplicateId(new_id));
             }
 
-            // Update index registry.
-            let volume_index = self.index_in_list();
-            let data = self
-                .index
-                .volumes
-                .shift_remove_index(volume_index)
-                .unwrap()
-                .1;
-            self.index
-                .volumes
-                .shift_insert(volume_index, new_id.clone(), data);
-            self.index.save();
+            // Keep track of old ids.
+            let old_id = self.id.clone();
+            self.data_mut().old_ids.push(old_id);
+
+            // Rename associated files.
+            let _ = fs::rename(
+                format!("content/volumes/{}.json", &self.id),
+                format!("content/volumes/{}.json", &new_id),
+            );
+            let _ = fs::rename(
+                format!("content/volumes/{}.index", &self.id),
+                format!("content/volumes/{}.index", &new_id),
+            );
+            let _ = fs::rename(
+                format!("content/volumes/{}.intro", &self.id),
+                format!("content/volumes/{}.intro", &new_id),
+            );
 
             // Update child entries.
             let entries = self.entry_ids().to_owned();
@@ -203,25 +211,24 @@ impl VolumeMut<'_> {
                     .0 = new_id.clone();
             }
 
-            // Rename associated files.
-            let _ = fs::rename(
-                format!("content/volume/{}.json", &self.id),
-                format!("content/volume/{}.json", &new_id),
-            );
-            let _ = fs::rename(
-                format!("content/volume/{}.index", &self.id),
-                format!("content/volume/{}.index", &new_id),
-            );
-            let _ = fs::rename(
-                format!("content/volume/{}.intro", &self.id),
-                format!("content/volume/{}.intro", &new_id),
-            );
-
+            // Update index registry.
+            let volume_index = self.index_in_list();
+            let data = self
+                .index
+                .volumes
+                .shift_remove_index(volume_index)
+                .unwrap()
+                .1;
+            self.index
+                .volumes
+                .shift_insert(volume_index, new_id.clone(), data);
             self.id = new_id;
+            self.index.save();
         }
 
         self.data_mut().title = title;
         Ok(())
+
     }
 
     /// Set the volume subtitle.
@@ -270,11 +277,11 @@ impl VolumeMut<'_> {
         // Archive files.
         let now = Utc::now().timestamp();
         let _ = fs::rename(
-            format!("content/volume/{}.json", &self.id),
+            format!("content/volumes/{}.json", &self.id),
             format!("archive/volume-{}-{now}", &self.id),
         );
         let _ = fs::rename(
-            format!("content/volume/{}.intro", &self.id),
+            format!("content/volumes/{}.intro", &self.id),
             format!("archive/intro-{}-{now}", &self.id),
         );
 

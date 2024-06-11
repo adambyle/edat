@@ -425,9 +425,9 @@ impl Index {
         };
 
         // Create files.
-        File::create(format!("content/section/{id}.txt")).unwrap();
-        File::create(format!("content/section/{id}.json")).unwrap();
-        File::create(format!("content/section/{id}.index")).unwrap();
+        File::create(format!("content/sections/{id}.txt")).unwrap();
+        File::create(format!("content/sections/{id}.json")).unwrap();
+        File::create(format!("content/sections/{id}.index")).unwrap();
 
         // Insert into parent entry.
         parent_entry.data_mut().sections.insert(index_in_parent, id);

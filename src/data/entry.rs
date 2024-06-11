@@ -158,6 +158,10 @@ impl EntryMut<'_> {
                 return Err(DataError::DuplicateId(new_id));
             }
 
+            // Keep track of old ids.
+            let old_id = self.id.clone();
+            self.data_mut().old_ids.push(old_id);
+
             // Update parent volume.
             let position = self.index_in_parent();
             self.parent_volume_mut().data_mut().entries[position] = new_id.clone();
@@ -172,20 +176,19 @@ impl EntryMut<'_> {
                     .parent_entry = new_id.clone();
             }
 
+            // Rename associated files.
+            let _ = fs::rename(
+                format!("content/entries/{}.json", &self.id),
+                format!("content/entries/{}.json", &new_id),
+            );
+            let _ = fs::rename(
+                format!("content/entries/{}.index", &self.id),
+                format!("content/entries/{}.index", &new_id),
+            );
+
             // Update index registry.
             let data = self.index.entries.remove(&self.id).unwrap();
             self.index.entries.insert(new_id.clone(), data);
-
-            // Rename associated files.
-            let _ = fs::rename(
-                format!("content/entry/{}.json", &self.id),
-                format!("content/entry/{}.json", &new_id),
-            );
-            let _ = fs::rename(
-                format!("content/entry/{}.index", &self.id),
-                format!("content/entry/{}.index", &new_id),
-            );
-
             self.id = new_id;
         }
 
@@ -268,10 +271,11 @@ impl EntryMut<'_> {
 
         // Archive files.
         let now = Utc::now().timestamp();
-        fs::rename(
-            format!("content/entry/{}.json", &self.id),
-            format!("archive/entry-{}-{now}", &self.id),
+        let _ = fs::rename(
+            format!("content/entries/{}.json", &self.id),
+            format!("archived/entry-{}-{now}", &self.id),
         );
+        fs::remove_file(format!("content/entries/{}.index", &self.id));
 
         // Prevent saving on drop.
         self.exists = false;

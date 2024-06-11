@@ -901,7 +901,7 @@ function parseSectionPosition(positionArgs: string[]): [Position<string, number>
 }
 
 function isNumber(n: number): boolean {
-    return !Number.isNaN(n) && n >= 0 || n != Infinity;
+    return !Number.isNaN(n) && n >= 0 && n != Infinity;
 }
 
 function createId(name: string) {
