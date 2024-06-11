@@ -73,13 +73,6 @@ macro_rules! immut_fns {
             self.data().parent_volume.1
         }
 
-        /// Get a wrapper around the parent volume.
-        pub fn parent_volume(&self) -> Volume {
-            self.index
-                .volume(self.data().parent_volume.0.to_owned())
-                .unwrap()
-        }
-
         pub(super) fn index_in_parent(&self) -> usize {
             self.parent_volume()
                 .entry_ids()
@@ -107,13 +100,6 @@ macro_rules! immut_fns {
             &self.data().sections
         }
 
-        /// Get wrappers around the sections in this entry.
-        pub fn sections(&self) -> impl Iterator<Item = Section> {
-            self.section_ids()
-                .iter()
-                .map(|&s| self.index.section(s).unwrap())
-        }
-
         /// Get the search index for this entry.
         pub fn search_index(&self) -> &search::Index {
             &self.data().search_index
@@ -123,6 +109,28 @@ macro_rules! immut_fns {
 
 impl Entry<'_> {
     immut_fns!();
+}
+
+impl<'index> Entry<'index> {
+    /// The parent index.
+    pub fn index(&self) -> &'index Index {
+        &self.index
+    }
+
+    /// Get a wrapper around the parent volume.
+    pub fn parent_volume(&self) -> Volume<'index> {
+        self.index
+            .volume(self.data().parent_volume.0.to_owned())
+            .unwrap()
+    }
+
+    /// Get wrappers around the sections in this entry.
+    pub fn sections(&self) -> impl Iterator<Item = Section<'index>> {
+        self.section_ids()
+            .to_owned()
+            .into_iter()
+            .map(|s| self.index.section(s).unwrap())
+    }
 }
 
 /// A mutable wrapper around an entry.
@@ -138,7 +146,24 @@ impl EntryMut<'_> {
     }
 
     pub fn as_immut(&self) -> Entry {
-        Entry { index: &self.index, id: self.id.clone() }
+        Entry {
+            index: &self.index,
+            id: self.id.clone(),
+        }
+    }
+
+    /// Get a wrapper around the parent volume.
+    pub fn parent_volume(&self) -> Volume {
+        self.index
+            .volume(self.data().parent_volume.0.to_owned())
+            .unwrap()
+    }
+
+    /// Get wrappers around the sections in this entry.
+    pub fn sections(&self) -> impl Iterator<Item = Section> {
+        self.section_ids()
+            .iter()
+            .map(|&s| self.index.section(s).unwrap())
     }
 
     immut_fns!();

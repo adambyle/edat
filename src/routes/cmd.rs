@@ -255,7 +255,6 @@ pub async fn cmd(
     }
 
     fn section_info(section: Section) -> cmd_html::SectionInfo {
-        let parent_entry = section.parent_entry();
         let in_entry = section.index_in_parent();
         let perspectives = section
             .perspective_ids()
@@ -283,7 +282,7 @@ pub async fn cmd(
             summary: section.summary().to_owned(),
             date: section.date().format("%Y-%m-%d").to_string(),
             parent_entry: section.parent_entry_id().to_owned(),
-            in_entry: (in_entry, parent_entry.section_count()),
+            in_entry: (in_entry, section.parent_entry().section_count()),
             length: section.length(),
             status: format!("{:?}", section.status()),
             perspectives,

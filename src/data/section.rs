@@ -107,16 +107,17 @@ macro_rules! immut_fns {
             Thread { line, comments }
         }
 
+        /// Get all the threads in this section.
+        pub fn threads(&self) -> Vec<Thread> {
+            (0..self.lines())
+                .map(|l| self.comments(l))
+                .filter(|t| !t.comments.is_empty())
+                .collect()
+        }
+
         /// The id of the parent entry.
         pub fn parent_entry_id(&self) -> &str {
             &self.data().parent_entry
-        }
-
-        /// Get a wrapper around the parent entry.
-        pub fn parent_entry(&self) -> Entry {
-            self.index
-                .entry(self.data().parent_entry.to_owned())
-                .unwrap()
         }
 
         /// The index of this section in its parent entry.
@@ -167,13 +168,19 @@ macro_rules! immut_fns {
 
 impl Section<'_> {
     immut_fns!();
+}
 
-    /// Get all the threads in this section.
-    pub fn threads(&self) -> Vec<Thread> {
-        (0..self.lines())
-            .map(|l| self.comments(l))
-            .filter(|t| !t.comments.is_empty())
-            .collect()
+impl<'index> Section<'index> {
+    /// The parent index.
+    pub fn index(&self) -> &'index Index {
+        &self.index
+    }
+
+    /// Get a wrapper around the parent entry.
+    pub fn parent_entry(&self) -> Entry<'index> {
+        self.index
+            .entry(self.data().parent_entry.to_owned())
+            .unwrap()
     }
 }
 
@@ -190,7 +197,17 @@ impl SectionMut<'_> {
     }
 
     pub fn as_immut(&self) -> Section {
-        Section { index: &self.index, id: self.id.clone() }
+        Section {
+            index: &self.index,
+            id: self.id.clone(),
+        }
+    }
+
+    /// Get a wrapper around the parent entry.
+    pub fn parent_entry(&self) -> Entry {
+        self.index
+            .entry(self.data().parent_entry.to_owned())
+            .unwrap()
     }
 
     immut_fns!();

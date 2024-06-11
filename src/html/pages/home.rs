@@ -1,17 +1,28 @@
+use std::fs;
+
+use rand::prelude::SliceRandom;
+
 use super::*;
 
-pub fn home<'index>(
-    headers: &HeaderMap,
-    widgets: Vec<Box<dyn home::Widget + 'index>>,
-    introduction: Vec<&str>,
-) -> maud::Markup {
+pub fn home<'index>(headers: &HeaderMap, user: &User) -> maud::Markup {
+    let introduction = fs::read_to_string("content/edat.intro").unwrap();
+
+    let widgets = user.widgets().iter().map(|w| match w.as_ref() {
+        "recent-widget" => recent_widget(user),
+        "library-widget" => library_widget(user),
+        "last-widget" => last_widget(user),
+        "conversations-widget" => conversations_widget(user),
+        "random-widget" => random_widget(user),
+        "extras-widget" => extras_widget(user),
+        "search-widget" => search_widget(user),
+        _ => html! {},
+    });
+
     let body = html! {
-        @for widget in &widgets {
-            .widget #(widget.id()) {
-                (widget.html())
-            }
+        @for widget in widgets {
+            (widget)
         }
-        @if widgets.len() == 0 {
+        @if user.widgets().is_empty() {
             .widget #empty-widget {
                 h2 { "Customize your homepage" }
                 p { "You haven’t added any elements to your homepage yet, like quick access to recent entries or library shortcuts, but you can do so in your settings." }
@@ -21,7 +32,7 @@ pub fn home<'index>(
         .widget #intro-widget {
             h2 { "Introduction" }
             .introduction {
-                @for line in &introduction {
+                @for line in introduction.lines() {
                     p { (PreEscaped(line)) }
                 }
             }
@@ -31,102 +42,210 @@ pub fn home<'index>(
     wrappers::universal(body, &headers, "home", "Home")
 }
 
-pub enum RandomWidget {
-    Unstarted(RandomEntry),
-    Unfinished {
-        entry: RandomEntry,
-        section_id: u32,
-        section_index: usize,
-        progress: usize,
-    },
-    ReadAgain {
-        entry: RandomEntry,
-        last_read: i64,
-    },
-}
+fn recent_widget(user: &User) -> Markup {
+    // Get whether the user wants to sections to show more details, by default.
+    let expand = user
+        .preferences()
+        .get("expand_recents")
+        .is_some_and(|p| p == "true");
+    let detail_class = if expand {
+        "show-detailed"
+    } else {
+        "show-concise"
+    };
 
-impl Widget for RandomWidget {
-    fn html(&self) -> Markup {
-        let entry_html = |entry: &RandomEntry, url: String| {
-            let volume = html! {
-                @if let Some(part) = entry.volume_part {
-                    (PreEscaped(&entry.volume))
-                    " vol. "
-                    (roman::to(part as i32 + 1).unwrap())
-                } @else {
-                    (PreEscaped(&entry.volume))
-                }
-            };
-            html! {
-                a.entry href=(url) {
-                    p.volume { (volume) }
-                    h3 { (PreEscaped(&entry.title)) }
-                    p.summary { (PreEscaped(&entry.summary)) }
-                }
-            }
-        };
+    // Get all the complete sections from journal volumes.
+    let mut sections: Vec<_> = user
+        .index()
+        .sections()
+        .filter(|s| {
+            s.status() == section::Status::Complete
+                && s.parent_entry().parent_volume().kind() == volume::Kind::Journal
+        })
+        .collect();
 
-        let entry_wrapper = match self {
-            Self::Unstarted(entry) => {
-                let url = format!("/entry/{}", &entry.id);
-                html! {
-                    (entry_html(entry, url))
-                    p.label { "You haven’t started this entry" }
-                }
-            }
-            Self::Unfinished {
-                entry,
-                section_id,
-                section_index,
-                progress,
-            } => {
-                let url = format!("/section/{}?line={}", section_id, progress);
-                html! {
-                    (entry_html(entry, url))
-                    @if *progress == 0 {
-                        p.label { "You need to start section " (section_index + 1) }
-                    } @else {
-                        p.label { "You’re partway through section " (section_index + 1) }
+    // Sort them by recency.
+    sections.sort_by_key(|s| (s.date(), s.id()));
+    sections.reverse();
+
+    // Processes a section into html.
+    let section_html = |section: &Section| {
+        // Get the previous section.
+        let previous = section.parent_entry().sections().nth(section.index_in_parent() - 1);
+        let previous_already_shown = previous
+            .as_ref()
+            .is_some_and(|previous| sections.iter().any(|s| s.id() == previous.id()));
+        let previous_html = if previous_already_shown {
+            None
+        } else {
+            previous.map(|previous| {
+                let prev_desc = html! {
+                    p.previous-label {"Previous section"}
+                    p.previous-description { (PreEscaped(previous.description())) }
+                };
+                if expand {
+                    html! {
+                        a.previous.detailed
+                            href={"/section/" (previous.id())}
+                        {
+                            (prev_desc)
+                        }
+                    }
+                } else {
+                    html! {
+                        a.previous.detailed
+                            style="display: none"
+                            href={"/section/" (previous.id())}
+                        {
+                            (prev_desc)
+                        }
                     }
                 }
+            })
+        };
+
+        let last_read = user
+            .history()
+            .into_iter()
+            .find(|(s, _)| s.id() == section.id())
+            .map(|(_, h)| h.timestamp());
+
+        let parent_volume = {
+            let parent_volume = section.parent_entry().parent_volume();
+            let parent_volume_title = parent_volume.title();
+            if parent_volume.parts_count() == 1 {
+                parent_volume_title.to_owned()
+            } else {
+                let part =
+                    roman::to(section.parent_entry().parent_volume_part() as i32 + 1).unwrap();
+                format!("{} vol. {}", parent_volume_title, part)
             }
-            Self::ReadAgain { entry, last_read } => {
-                let url = format!("/entry/{}", &entry.id);
-                html! {
-                    (entry_html(entry, url))
-                    p.label { "You haven’t read this since " utc { (last_read) } }
+        };
+
+        let concise_desc = html! {
+            p.description { (PreEscaped(section.description())) }
+        };
+
+        let detailed_desc = html! {
+            p.summary { (PreEscaped(section.summary())) }
+            span.details {
+                span.index {
+                    @if section.parent_entry().section_count() == 1 {
+                        "Standalone"
+                    } @else {
+                        "Section " (1 + section.index_in_parent())
+                    }
+                }
+                span.wordcount {
+                    (section.length()) " words"
+                }
+                span.date {
+                    "Added " (section.date())
                 }
             }
         };
 
         html! {
-            h2 { "Reading recommendation" }
-            (entry_wrapper)
+            .section edat-unread[last_read.is_none()] {
+                a.section-info href={ "/section/" (section.id()) } {
+                    // Volume and entry header.
+                    @if expand {
+                        p.volume.detailed { (parent_volume) }
+                    } @else {
+                        p.volume.detailed
+                            style="display: none"
+                        { (parent_volume) }
+                    }
+                    h3 { (PreEscaped(section.parent_entry().title())) }
+
+                    // Inner description
+                    @if expand {
+                        .concise style="display: none" {
+                            (concise_desc)
+                        }
+                        .detailed {
+                            (detailed_desc)
+                        }
+                    } @else {
+                        .concise {
+                            (concise_desc)
+                        }
+                        .detailed style="display: none" {
+                            (detailed_desc)
+                        }
+                    }
+                }
+
+                @if let Some(ref time) = last_read {
+                    span.read { "You read on " utc { (time) } }
+                } @else {
+                    span.unread-wrapper {
+                        span.unread { "Unread" }
+                        button.skip edat-section=(section.id()) { "I’ve already read this" }
+                    }
+                }
+                @if let Some(previous_html) = previous_html {
+                    (previous_html)
+                }
+            }
+        }
+    };
+
+    html! {
+        .widget #recent-widget {
+            h2 { "Recent uploads" }
+            #recent-carousel class=(detail_class) {
+                @for section in &sections {
+                    (section_html(section))
+                }
+            }
+            button id="recent-expand" {
+                @if expand {
+                    span.detailed { "Hide details" }
+                    span.concise style="display: none" { "Show details" }
+                } @else {
+                    span.detailed style="display: none" { "Hide details" }
+                    span.concise { "Show details" }
+                }
+            }
         }
     }
+}
 
-    fn id(&self) -> &'static str {
-        "random-widget"
+fn library_widget(user: &User) -> Markup {
+    let volumes = user
+        .index()
+        .volumes()
+        .filter(|v| v.kind() == volume::Kind::Journal);
+
+    html! {
+        .widget #library-widget {
+            h2 { "The library" }
+            .volumes {
+                @for volume in volumes {
+                    a.volume href={ "/volume/" (volume.id()) } {
+                        h3 { (PreEscaped(volume.title())) }
+                        @if let Some(subtitle) = volume.subtitle() {
+                            p.subtitle { (PreEscaped(subtitle)) }
+                        }
+                    }
+                }
+                a.volume-link href="/library" { "Search the full library" }
+            }
+        }
     }
 }
 
-pub struct RandomEntry {
-    pub id: String,
-    pub volume: String,
-    pub volume_part: Option<usize>,
-    pub title: String,
-    pub summary: String,
-}
+fn last_widget(user: &User) -> Markup {
+    let section = user
+        .history()
+        .into_iter()
+        .find(|(_, h)| !matches!(h, SectionProgress::Finished { .. }));
 
-pub struct LastWidget<'index> {
-    pub section: Option<(Section<'index>, SectionProgress)>,
-}
-
-impl Widget for LastWidget<'_> {
-    fn html(&self) -> Markup {
-        html! {
+    html! {
+        .widget #last-widget {
             h2 { "Last read" }
-            @if let Some((ref section, ref progress)) = self.section {
+            @if let Some((ref section, ref progress)) = section {
                 @let progress_pp =
                     (progress.line() as f32 / section.lines() as f32 * 100.0)
                     .round();
@@ -155,35 +274,124 @@ impl Widget for LastWidget<'_> {
             }
         }
     }
+}
 
-    fn id(&self) -> &'static str {
-        "last-widget"
+fn conversations_widget(user: &User) -> Markup {
+    html! {
+        .widget #conversations-widget {
+
+        }
     }
 }
 
-pub struct LastSection {
-    pub id: u32,
-    pub summary: String,
-    pub timestamp: i64,
-    pub entry: String,
-    pub index: (usize, usize),
-    pub progress: (usize, usize),
-}
-
-pub struct LibraryWidget {
-    pub volumes: Vec<LibraryVolume>,
-    pub title: String,
-}
-
-impl Widget for LibraryWidget {
-    fn html(&self) -> Markup {
+fn random_widget(user: &User) -> Markup {
+    let entry_html = |entry: &Entry, url: String| {
+        let parent_volume = {
+            let parent_volume = entry.parent_volume();
+            let parent_volume_title = parent_volume.title();
+            if parent_volume.parts_count() == 1 {
+                parent_volume_title.to_owned()
+            } else {
+                let part =
+                    roman::to(entry.parent_volume_part() as i32 + 1).unwrap();
+                format!("{} vol. {}", parent_volume_title, part)
+            }
+        };
         html! {
-            h2 { (self.title) }
+            a.entry href=(url) {
+                p.volume { (parent_volume) }
+                h3 { (PreEscaped(entry.title())) }
+                p.summary { (PreEscaped(entry.summary())) }
+            }
+        }
+    };
+
+    let entry = 'entry: {// Collect all the entries and shuffle them.
+        let mut entries: Vec<_> = user.index().entries().collect();
+        entries.shuffle(&mut rand::thread_rng());
+    
+        // Try to find an unstarted entry.
+        let mut started_entries = Vec::with_capacity(entries.len());
+        for entry in entries {
+            match user.entry_progress(&entry) {
+                None => {
+                    // We found an unstarted entry.
+                    let url = format!("/entry/{}", entry.id());
+                    break 'entry html! {
+                        (entry_html(&entry, url))
+                        p.label { "You haven’t started this entry" }
+                    };
+                }
+                Some(progress) => {
+                    // Check this one later.
+                    started_entries.push((entry, progress));
+                }
+            }
+        }
+    
+        // Try to find an unfinished entry.
+        let mut finished_entries = Vec::with_capacity(started_entries.len());
+        for (entry, progress) in started_entries {
+            match progress {
+                EntryProgress::UpToSection {
+                    section_id,
+                    section_index,
+                    ..
+                } => {
+                    let url = format!("/section/{section_id}");
+                    break 'entry html! {
+                        (entry_html(&entry, url))
+                        p.label { "You need to start section " (section_index + 1) }
+                    };
+                }
+                EntryProgress::InSection {
+                    section_id,
+                    section_index,
+                    line,
+                    ..
+                } => {
+                    let url = format!("/section/{section_id}?line={line}");
+                    break 'entry html! {
+                        (entry_html(&entry, url))
+                        p.label { "You’re partway through section " (section_index + 1) }
+                    };
+                }
+                EntryProgress::Finished { last_read } => finished_entries.push((entry, last_read)),
+            }
+        }
+    
+        // Otherwise, just pick a random entry.
+        let (entry, last_read) = finished_entries.last().unwrap();
+        let url = format!("/entry/{}", entry.id());
+        html! {
+            (entry_html(entry, url))
+            p.label { "You haven’t read this since " utc { (last_read) } }
+        }
+    };
+    
+
+    html! {
+        .widget #random-widget {
+            h2 { "Reading recommendation" }
+            (entry)
+        }
+    }
+}
+
+fn extras_widget(user: &User) -> Markup {
+    let volumes = user
+        .index()
+        .volumes()
+        .filter(|v| v.kind() != volume::Kind::Journal && v.kind() != volume::Kind::Featured);
+
+    html! {
+        .widget #library-widget {
+            h2 { "The library" }
             .volumes {
-                @for volume in &self.volumes {
-                    a.volume href={ "/volume/" (volume.id) } {
-                        h3 { (PreEscaped(&volume.title)) }
-                        @if let Some(subtitle) = &volume.subtitle {
+                @for volume in volumes {
+                    a.volume href={ "/volume/" (volume.id()) } {
+                        h3 { (PreEscaped(volume.title())) }
+                        @if let Some(subtitle) = volume.subtitle() {
                             p.subtitle { (PreEscaped(subtitle)) }
                         }
                     }
@@ -192,170 +400,12 @@ impl Widget for LibraryWidget {
             }
         }
     }
-
-    fn id(&self) -> &'static str {
-        "library-widget"
-    }
 }
 
-pub struct LibraryVolume {
-    pub title: String,
-    pub id: String,
-    pub subtitle: Option<String>,
-    pub entry_count: usize,
-}
+fn search_widget(user: &User) -> Markup {
+    html! {
+        .widget #search-widget {
 
-pub struct RecentWidget {
-    pub sections: Vec<RecentSection>,
-    pub expand: bool,
-}
-
-impl RecentWidget {
-    fn section(&self, section: &RecentSection, show_previous: bool) -> Markup {
-        html! {
-            @let concise = html! {
-                p.description { (PreEscaped(&section.description)) }
-            };
-            @let detailed = html! {
-                p.summary { (PreEscaped(&section.summary)) }
-                span.details {
-                    span.index {
-                        @if section.in_entry.1 == 1 {
-                            "Standalone"
-                        } @else {
-                            "Section " (section.in_entry.0)
-                        }
-                    }
-                    span.wordcount {
-                        (section.length) " words"
-                    }
-                    span.date {
-                        "Added " (section.date)
-                    }
-                }
-            };
-            .section edat-unread[section.read.is_none()] {
-                a.section-info href={ "/section/" (section.id) } {
-                    @let volume = html! {
-                        @if section.parent_volume.2 == 1 {
-                            (PreEscaped(&section.parent_volume.0))
-                        } @else {
-                            (PreEscaped(&section.parent_volume.0))
-                            " vol. "
-                            (roman::to(section.parent_volume.1 as i32 + 1).unwrap())
-                        }
-                    };
-                    @if self.expand {
-                        p.volume.detailed {
-                            (volume)
-                        }
-                    } @else {
-                        p.volume.detailed
-                            style="display: none"
-                        {
-                            (volume)
-                        }
-                    }
-                    h3 { (PreEscaped(&section.parent_entry)) }
-                    @if self.expand {
-                        .concise style="display: none" {
-                            (concise)
-                        }
-                        .detailed {
-                            (detailed)
-                        }
-                    } @else {
-                        .concise {
-                            (concise)
-                        }
-                        .detailed style="display: none" {
-                            (detailed)
-                        }
-                    }
-                }
-                @if let Some(ref time) = section.read {
-                    span.read { "You read on " utc { (time) } }
-                } @else {
-                    span.unread-wrapper {
-                        span.unread { "Unread" }
-                        button.skip edat-section=(section.id) { "I’ve already read this" }
-                    }
-                }
-                @if let (true, Some((id, description))) = (show_previous, &section.previous) {
-                    @let previous = html! {
-                        p.previous-label {"Previous section"}
-                        p.previous-description { (PreEscaped(description)) }
-                    };
-                    @if self.expand {
-                        a.previous.detailed
-                            href={"/section/" (id)}
-                        {
-                            (previous)
-                        }
-                    } @else {
-                        a.previous.detailed
-                            style="display: none"
-                            href={"/section/" (id)}
-                        {
-                            (previous)
-                        }
-                    }
-                }
-            }
         }
     }
-}
-
-impl Widget for RecentWidget {
-    fn html(&self) -> Markup {
-        let detail_class = if self.expand {
-            "show-detailed"
-        } else {
-            "show-concise"
-        };
-        html! {
-            h2 { "Recent uploads" }
-            #recent-carousel class=(detail_class) {
-                @for section in &self.sections {
-                    @let show_previous = section
-                        .previous
-                        .as_ref()
-                        .is_some_and(|p| !self.sections.iter().any(|s| s.id != p.0));
-                    (self.section(section, show_previous))
-                }
-            }
-            button id="recent-expand" {
-                @if self.expand {
-                    span.detailed { "Hide details" }
-                    span.concise style="display: none" { "Show details" }
-                } @else {
-                    span.detailed style="display: none" { "Hide details" }
-                    span.concise { "Show details" }
-                }
-            }
-        }
-    }
-
-    fn id(&self) -> &'static str {
-        "recent-widget"
-    }
-}
-
-pub struct RecentSection {
-    pub id: u32,
-    pub parent_entry: String,
-    pub parent_volume: (String, usize, usize),
-    pub in_entry: (usize, usize),
-    pub previous: Option<(u32, String)>,
-    pub description: String,
-    pub summary: String,
-    pub date: String,
-    pub length: String,
-    pub read: Option<i64>,
-}
-
-pub trait Widget {
-    fn html(&self) -> Markup;
-
-    fn id(&self) -> &'static str;
 }

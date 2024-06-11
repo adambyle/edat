@@ -42,7 +42,7 @@ macro_rules! immut_fns {
             self.index.users.get(&self.id).unwrap()
         }
 
-        pub(crate) fn id(&self) -> &str {
+        pub fn id(&self) -> &str {
             &self.id
         }
 
@@ -79,23 +79,6 @@ macro_rules! immut_fns {
         /// The user's homepage widgets.
         pub fn widgets(&self) -> &[String] {
             &self.data().widgets
-        }
-
-        /// The user's history, stored by section and ordered from latest to earliest.
-        pub fn history(&self) -> Vec<(Section, SectionProgress)> {
-            // Order the history entries from latest to earliest.
-            let mut history = self.data().history.clone();
-            history.sort_by_key(|h| -h.timestamp);
-
-            // Map each history entry to a section and its progress.
-            history
-                .iter()
-                .map(|h| {
-                    let section = self.index.section(h.section).unwrap();
-                    let progress = Self::internal_section_progress(h, &section);
-                    (section, progress)
-                })
-                .collect()
         }
 
         /// The user's progress in a section.
@@ -150,10 +133,7 @@ macro_rules! immut_fns {
                             out_of: entry.sections().count(),
                         })
                     }
-                    Some(SectionProgress::Reading {
-                        line,
-                        last_read,
-                    }) => {
+                    Some(SectionProgress::Reading { line, last_read }) => {
                         return Some(EntryProgress::InSection {
                             section_id: section.id,
                             section_index: section.index_in_parent(),
@@ -186,6 +166,30 @@ impl User<'_> {
     immut_fns!();
 }
 
+impl<'index> User<'index> {
+    /// The parent index.
+    pub fn index(&self) -> &Index {
+        &self.index
+    }
+
+    /// The user's history, stored by section and ordered from latest to earliest.
+    pub fn history(&self) -> Vec<(Section<'index>, SectionProgress)> {
+        // Order the history entries from latest to earliest.
+        let mut history = self.data().history.clone();
+        history.sort_by_key(|h| -h.timestamp);
+
+        // Map each history entry to a section and its progress.
+        history
+            .iter()
+            .map(|h| {
+                let section = self.index.section(h.section).unwrap();
+                let progress = Self::internal_section_progress(h, &section);
+                (section, progress)
+            })
+            .collect()
+    }
+}
+
 /// A mutable wrapper around a user.
 pub struct UserMut<'index> {
     pub(super) index: &'index mut super::Index,
@@ -198,7 +202,27 @@ impl UserMut<'_> {
     }
 
     pub fn as_immut(&self) -> User {
-        User { index: &self.index, id: self.id.clone() }
+        User {
+            index: &self.index,
+            id: self.id.clone(),
+        }
+    }
+
+    /// The user's history, stored by section and ordered from latest to earliest.
+    pub fn history(&self) -> Vec<(Section, SectionProgress)> {
+        // Order the history entries from latest to earliest.
+        let mut history = self.data().history.clone();
+        history.sort_by_key(|h| -h.timestamp);
+
+        // Map each history entry to a section and its progress.
+        history
+            .iter()
+            .map(|h| {
+                let section = self.index.section(h.section).unwrap();
+                let progress = Self::internal_section_progress(h, &section);
+                (section, progress)
+            })
+            .collect()
     }
 
     immut_fns!();
@@ -206,11 +230,7 @@ impl UserMut<'_> {
     /// Set the user's name.
     ///
     /// This also changes the user's id, resulting in side effects in other resources.
-    pub fn set_name(
-        &mut self,
-        first_name: String,
-        last_name: String,
-    ) -> DataResult<()> {
+    pub fn set_name(&mut self, first_name: String, last_name: String) -> DataResult<()> {
         let new_id = create_id(&format!("{}{}", first_name, last_name));
 
         if new_id != self.id {

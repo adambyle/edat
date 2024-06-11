@@ -76,11 +76,6 @@ macro_rules! immut_fns {
             &self.data().owner
         }
 
-        /// Get a wrapper around the owner.
-        pub fn owner(&self) -> User {
-            self.index.user(self.owner_id().to_owned()).unwrap()
-        }
-
         /// The kind of content in the volume.
         pub fn kind(&self) -> Kind {
             self.data().content_type.clone()
@@ -108,13 +103,6 @@ macro_rules! immut_fns {
         /// The ids of the entries in the volume.
         pub fn entry_ids(&self) -> &[String] {
             &self.data().entries
-        }
-
-        /// Get wrappers around the entries in the volume.
-        pub fn entries(&self) -> impl Iterator<Item = Entry> {
-            self.entry_ids()
-                .iter()
-                .map(|e| self.index.entry(e.clone()).unwrap())
         }
 
         /// Get wrappers around the entries in the volume, sorted by part.
@@ -148,6 +136,26 @@ impl Volume<'_> {
     immut_fns!();
 }
 
+impl<'index> Volume<'index> {
+    /// The parent index.
+    pub fn index(&self) -> &'index Index {
+        &self.index
+    }
+
+    /// Get a wrapper around the owner.
+    pub fn owner(&self) -> User<'index> {
+        self.index.user(self.owner_id().to_owned()).unwrap()
+    }
+
+    /// Get wrappers around the entries in the volume.
+    pub fn entries(&self) -> impl Iterator<Item = Entry<'index>> {
+        self.entry_ids()
+            .to_owned()
+            .into_iter()
+            .map(|e| self.index.entry(e).unwrap())
+    }
+}
+
 /// A mutable wrapper around a volume.
 pub struct VolumeMut<'index> {
     pub(super) index: &'index mut Index,
@@ -165,6 +173,18 @@ impl VolumeMut<'_> {
             index: &self.index,
             id: self.id.clone(),
         }
+    }
+
+    /// Get a wrapper around the owner.
+    pub fn owner(&self) -> User {
+        self.index.user(self.owner_id().to_owned()).unwrap()
+    }
+
+    /// Get wrappers around the entries in the volume.
+    pub fn entries(&self) -> impl Iterator<Item = Entry> {
+        self.entry_ids()
+            .iter()
+            .map(|e| self.index.entry(e.clone()).unwrap())
     }
 
     immut_fns!();
@@ -228,7 +248,6 @@ impl VolumeMut<'_> {
 
         self.data_mut().title = title;
         Ok(())
-
     }
 
     /// Set the volume subtitle.

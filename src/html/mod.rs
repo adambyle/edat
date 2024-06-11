@@ -8,7 +8,3 @@ pub mod cmd;
 pub mod components;
 pub mod pages;
 mod wrappers;
-
-pub mod profile {
-    use maud::{html, Markup, PreEscaped};
-}
