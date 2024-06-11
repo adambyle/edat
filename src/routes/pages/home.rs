@@ -1,13 +1,12 @@
 use std::fs;
 
-use html::pages::home::Widget;
+use html::pages::home as home_html;
 use rand::Rng;
 
 use super::*;
 
 pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> Result<Markup, Markup> {
-    use html::pages::home as home_html;
-    
+
     let index = state.index.lock().unwrap();
     let user = auth::get_user(&headers, &index)?;
 
@@ -27,15 +26,8 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> Result<M
             .collect();
 
         // Sort them by recency.
-        sections.sort_by(|a, b| {
-            let date_a = a.date();
-            let date_b = b.date();
-            if date_a == date_b {
-                b.id().cmp(&a.id())
-            } else {
-                date_b.cmp(&date_a)
-            }
-        });
+        sections.sort_by_key(|s| (s.date(), s.id()));
+        sections.reverse();
 
         // Process the 10 latest sections...
         let recents = sections[..10.min(sections.len())]
@@ -49,7 +41,7 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> Result<M
                     .history()
                     .iter()
                     .find(|(s, _)| s.id() == section.id())
-                    .and_then(|(_, h)| h.timestamp());
+                    .map(|(_, h)| h.timestamp());
                 let parent_volume = parent_entry.parent_volume();
                 let parent_volume = (
                     parent_volume.title().to_owned(),
@@ -118,28 +110,6 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> Result<M
         }
     };
 
-    let last_widget = || {
-        let section = user
-            .history()
-            .iter()
-            .filter_map(|(s, h)| h.progress().map(|p| (s, p)))
-            .next()
-            .map(|(s, p)| {
-                let entry = s.parent_entry();
-                let index = s.index_in_parent();
-                home_html::LastSection {
-                    entry: entry.title().to_owned(),
-                    summary: s.summary().to_owned(),
-                    timestamp: p.1,
-                    id: s.id(),
-                    index: (index, entry.section_count()),
-                    progress: (p.0, s.lines()),
-                }
-            });
-
-        home_html::LastWidget { section }
-    };
-
     let random_widget = || {
         // TODO make random.
 
@@ -158,7 +128,7 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> Result<M
 
         let unstarted_entries: Vec<_> = index
             .entries()
-            .filter(|e| matches!(user.entry_progress(&e), EntryProgress::Unstarted))
+            .filter(|e| matches!(user.entry_progress(&e), None))
             .collect();
         if !unstarted_entries.is_empty() {
             let entry =
@@ -169,14 +139,14 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> Result<M
         let unfinished_entries: Vec<_> = index
             .entries()
             .filter_map(|e| {
-                if let EntryProgress::InSection {
+                if let Some(EntryProgress::InSection {
                     section_id,
                     section_index,
-                    progress,
+                    line,
                     ..
-                } = user.entry_progress(&e)
+                }) = user.entry_progress(&e)
                 {
-                    Some((e, section_id, section_index, progress))
+                    Some((e, section_id, section_index, line))
                 } else {
                     None
                 }
@@ -194,7 +164,7 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> Result<M
         let mut read_again: Vec<_> = index
             .entries()
             .filter_map(|e| {
-                if let EntryProgress::Finished { last_read } = user.entry_progress(&e) {
+                if let Some(EntryProgress::Finished { last_read }) = user.entry_progress(&e) {
                     Some((e, last_read))
                 } else {
                     None
@@ -211,11 +181,11 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> Result<M
     };
 
     for widget in user.widgets() {
-        let widget: Box<dyn Widget> = match widget.as_ref() {
+        let widget: Box<dyn home_html::Widget> = match widget.as_ref() {
             "recent-widget" => Box::new(recent_widget()),
             "library-widget" => Box::new(library_widget()),
             "extras-widget" => Box::new(extras_widget()),
-            "last-widget" => Box::new(last_widget()),
+            "last-widget" => Box::new(last_widget(&user)),
             "random-widget" => Box::new(random_widget()),
             _ => continue,
         };
@@ -225,4 +195,13 @@ pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> Result<M
     let intro = fs::read_to_string("content/edat.intro").unwrap();
     let intro_lines: Vec<&str> = intro.lines().filter(|l| l.len() > 0).collect();
     Ok(home_html::home(&headers, widgets, intro_lines))
+}
+
+fn last_widget<'index>(user: &'index User) -> home_html::LastWidget<'index> {
+    let section = user
+        .history()
+        .into_iter()
+        .find(|(_, h)| !matches!(h, SectionProgress::Finished { .. }));
+
+    home_html::LastWidget { section }
 }

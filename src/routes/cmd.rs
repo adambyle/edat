@@ -175,12 +175,10 @@ pub async fn cmd(
         // Transform the list of read sections into a list of read entries (and their date).
         let mut entry_history = IndexMap::new();
         for (s, h) in user.history() {
-            if let Some(timestamp) = h.timestamp() {
-                if let Some(entry) = entry_history.get_mut(s.parent_entry_id()) {
-                    *entry = std::cmp::max(*entry, timestamp);
-                } else {
-                    entry_history.insert(s.parent_entry_id().to_owned(), timestamp);
-                }
+            if let Some(entry) = entry_history.get_mut(s.parent_entry_id()) {
+                *entry = std::cmp::max(*entry, h.timestamp());
+            } else {
+                entry_history.insert(s.parent_entry_id().to_owned(), h.timestamp());
             }
         }
         entry_history.sort_by_cached_key(|_, &t| t);

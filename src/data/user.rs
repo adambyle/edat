@@ -99,23 +99,22 @@ macro_rules! immut_fns {
         }
 
         /// The user's progress in a section.
-        pub fn section_progress(&self, section: &Section) -> SectionProgress {
+        pub fn section_progress(&self, section: &Section) -> Option<SectionProgress> {
             self.data()
                 .history
                 .iter()
                 .find(|h| h.section == section.id)
                 .map(|h| Self::internal_section_progress(h, section))
-                .unwrap_or(SectionProgress::Unstarted)
         }
 
         fn internal_section_progress(history: &HistoryEntry, section: &Section) -> SectionProgress {
             use SectionProgress as S;
-            match (history.ever_finished, history.progress > 0) {
+            match (history.ever_finished, history.line > 0) {
                 (false, false) => unreachable!(),
                 (false, true) => S::Reading {
                     // Section is being read but has never been finished.
                     last_read: history.timestamp,
-                    progress: history.progress,
+                    line: history.line,
                 },
                 (true, false) => S::Finished {
                     // Section has been finished, and the user has not restarted it.
@@ -124,55 +123,51 @@ macro_rules! immut_fns {
                 (true, true) => S::Rereading {
                     // Section has been finished, and the user has restarted it.
                     last_read: history.timestamp,
-                    progress: history.progress,
+                    line: history.line,
                 },
             }
         }
 
         /// The user's progress in an entry.
-        pub fn entry_progress(&self, entry: &Entry) -> EntryProgress {
+        pub fn entry_progress(&self, entry: &Entry) -> Option<EntryProgress> {
             // If none of the entry's sections have been started, then this entry is unstarted.
             if !entry
                 .sections()
-                .any(|s| self.section_progress(&s).started())
+                .any(|s| self.section_progress(&s).is_some())
             {
-                return EntryProgress::Unstarted;
+                return None;
             }
 
             // Iterate through the entry's sections and look for one that is unstarted.
             // Or, find that the user is partway through a section.
+            let mut last_read = 0;
             for section in entry.sections() {
                 match self.section_progress(&section) {
-                    SectionProgress::Unstarted => {
-                        return EntryProgress::UpToSection {
+                    None => {
+                        return Some(EntryProgress::UpToSection {
                             section_id: section.id,
                             section_index: section.index_in_parent(),
                             out_of: entry.sections().count(),
-                        }
+                        })
                     }
-                    SectionProgress::Reading {
-                        progress,
+                    Some(SectionProgress::Reading {
+                        line,
                         last_read,
-                    } => {
-                        return EntryProgress::InSection {
+                    }) => {
+                        return Some(EntryProgress::InSection {
                             section_id: section.id,
                             section_index: section.index_in_parent(),
                             out_of: entry.sections().count(),
-                            progress,
+                            line,
                             last_read,
-                        }
+                        })
                     }
-                    _ => (),
+                    Some(other) => last_read = last_read.max(other.timestamp()),
                 }
             }
 
             // The user has finished the entry.
-            let last_read = entry
-                .sections()
-                .map(|s| self.section_progress(&s).timestamp().unwrap())
-                .max()
-                .unwrap();
-            EntryProgress::Finished { last_read }
+            Some(EntryProgress::Finished { last_read })
         }
 
         /// The user's preferences.
@@ -293,7 +288,7 @@ impl UserMut<'_> {
             .find(|h| h.section == section)
         {
             history.timestamp = Utc::now().timestamp();
-            history.progress = progress;
+            history.line = progress;
             return true;
         }
 
@@ -303,7 +298,7 @@ impl UserMut<'_> {
                 section: section,
                 timestamp: Utc::now().timestamp(),
                 ever_finished: false,
-                progress,
+                line: progress,
             });
             return true;
         }
@@ -324,7 +319,7 @@ impl UserMut<'_> {
             .find(|h| h.section == section)
         {
             history.timestamp = Utc::now().timestamp();
-            history.progress = 0;
+            history.line = 0;
             history.ever_finished = true;
             return true;
         }
@@ -335,7 +330,7 @@ impl UserMut<'_> {
                 section: section,
                 timestamp: Utc::now().timestamp(),
                 ever_finished: true,
-                progress: 0,
+                line: 0,
             });
             return true;
         }

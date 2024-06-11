@@ -5,8 +5,8 @@ use crate::routes::get_cookie;
 use crate::data::*;
 
 pub mod cmd;
+pub mod components;
 pub mod pages;
-pub mod widgets;
 mod wrappers;
 
 pub mod profile {

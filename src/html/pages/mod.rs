@@ -27,7 +27,6 @@ pub fn login(headers: &HeaderMap) -> Markup {
 }
 
 pub fn setup(headers: &HeaderMap, index: &Index) -> Markup {
-    let widgets = widgets::ordered_widget_data(&[]);
     let volumes = index.volumes().filter(|v| v.kind() == volume::Kind::Journal);
 
     let setup = html! {
@@ -62,7 +61,7 @@ pub fn setup(headers: &HeaderMap, index: &Index) -> Markup {
             p { b { "Your homepage is customizable to serve the most relevant content." } }
             p { "Select the elements below in the order (top to bottom) you would like them to appear on your homepage. You can include or omit whichever you want." }
             p { "Common resources, like the library, the index, and the addition history, will always have quick links at the top, but you can get more detailed information by selecting their widgets below." }
-            (widgets::widget_options_component(widgets))
+            (components::widget_options(&[]))
             p { "You can always change these settings later." }
             button #done { "Finished" }
         }

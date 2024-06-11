@@ -1,8 +1,8 @@
 use super::*;
 
-pub fn home(
+pub fn home<'index>(
     headers: &HeaderMap,
-    widgets: Vec<Box<dyn home::Widget>>,
+    widgets: Vec<Box<dyn home::Widget + 'index>>,
     introduction: Vec<&str>,
 ) -> maud::Markup {
     let body = html! {
@@ -118,30 +118,34 @@ pub struct RandomEntry {
     pub summary: String,
 }
 
-pub struct LastWidget {
-    pub section: Option<LastSection>,
+pub struct LastWidget<'index> {
+    pub section: Option<(Section<'index>, SectionProgress)>,
 }
 
-impl Widget for LastWidget {
+impl Widget for LastWidget<'_> {
     fn html(&self) -> Markup {
         html! {
             h2 { "Last read" }
-            @if let Some(ref section) = self.section {
-                @let progress =
-                    (section.progress.0 as f32 / section.progress.1 as f32 * 100.0)
+            @if let Some((ref section, ref progress)) = self.section {
+                @let progress_pp =
+                    (progress.line() as f32 / section.lines() as f32 * 100.0)
                     .round();
                 a.see-profile href="/profile" {
                     "See reading history in your profile"
                 }
-                a.last-section href={ "/section/" (section.id) "?line=" (section.progress.0) } {
-                    h3 { (PreEscaped(&section.entry)) }
+                a.last-section href={ "/section/" (section.id()) "?line=" (progress.line()) } {
+                    h3 { (PreEscaped(section.parent_entry().title())) }
                     p.summary {
-                        (PreEscaped(&section.summary))
-                        span.index { (section.index.0 + 1) "/" (section.index.1) }
+                        (PreEscaped(section.summary()))
+                        span.index {
+                            (1 + section.index_in_parent())
+                            "/"
+                            (section.parent_entry().section_count())
+                        }
                     }
                     p.info {
-                        span.progress { (progress) "% complete" }
-                        span.lastread { "Last read " utc { (section.timestamp) } }
+                        span.progress { (progress_pp) "% complete" }
+                        span.lastread { "Last read " utc { (progress.timestamp()) } }
                     }
                 }
             } @else {
