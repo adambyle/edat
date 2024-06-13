@@ -30,11 +30,12 @@ async fn main() {
     };
 
     let app = Router::new()
-        .route("/", get(routes::pages::home::home))
+        .route("/", get(routes::pages::home))
         .route("/archive", get(routes::files::archive))
         .route("/cmd", post(routes::cmd::cmd))
         .route("/image/:file", get(routes::files::image))
         .route("/image/:file", post(routes::cmd::image_upload))
+        .route("/library", get(routes::pages::volumes))
         .route("/login/:name/:code", post(routes::auth::login))
         .route("/preferences", post(routes::user::set_preferences))
         .route("/profile", get(routes::pages::profile))
@@ -43,6 +44,7 @@ async fn main() {
         .route("/script/:file", get(routes::files::script))
         .route("/style/:file", get(routes::files::style))
         .route("/terminal", get(routes::pages::terminal))
+        .route("/volume/:volume", get(routes::pages::volume))
         .route("/widgets", post(routes::user::set_widgets))
         .with_state(state);
 

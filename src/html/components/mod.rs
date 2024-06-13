@@ -51,8 +51,8 @@ pub fn widget_options(widgets: &[String]) -> Markup {
                 id: "extras-widget".to_owned(),
             },
             W {
-                name: "Search bar".to_owned(),
-                description: "Website search features".to_owned(),
+                name: "Global search".to_owned(),
+                description: "Site-wide search for text content".to_owned(),
                 order: order(&"search-widget"),
                 id: "search-widget".to_owned(),
             },

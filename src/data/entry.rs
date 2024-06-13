@@ -131,6 +131,24 @@ impl<'index> Entry<'index> {
             .into_iter()
             .map(|s| self.index.section(s).unwrap())
     }
+
+    /// The length in words of this entry's content.
+    pub fn length(&self) -> usize {
+        self.sections()
+            .filter(|s| s.status() != section::Status::Missing)
+            .map(|s| s.length())
+            .sum()
+    }
+
+    /// The length in words of this section's content, as a string.
+    pub fn length_string(&self) -> String {
+        let length = self.length();
+        if length < 2000 {
+            (length / 100 * 100).to_string()
+        } else {
+            format!("{}k", (length as f64 / 1000.0).round())
+        }
+    }
 }
 
 /// A mutable wrapper around an entry.
@@ -242,24 +260,27 @@ impl EntryMut<'_> {
     pub fn move_to(&mut self, position: Position<(String, usize), String>) -> DataResult<()> {
         // Detach from current volume.
         let parent_volume_id = self.parent_volume_id().to_owned();
-        let parent_volume = self.index.volumes.get_mut(&parent_volume_id).unwrap();
-        parent_volume.entries.retain(|e| e != &self.id);
+        let id = self.id.clone();
+        let mut parent_volume = self.parent_volume_mut();
+        parent_volume.data_mut().entries.retain(|e| e != &id);
 
         // Update old parent volume count.
-        parent_volume.volume_count = parent_volume
-            .entries
-            .iter()
-            .map(|e| self.index.entries.get(e).unwrap().parent_volume.1)
+        let new_part_count = parent_volume
+            .entries()
+            .map(|e| 1 + e.parent_volume_part())
             .max()
             .unwrap_or(0);
+        parent_volume.data_mut().volume_count = new_part_count;
+        drop(parent_volume);
 
         // Get new parent.
         let (mut new_parent_volume, new_parent_volume_part, new_index_in_parent) =
             position.resolve(&mut self.index)?;
 
         // Update new parent volume count.
-        let current_count = new_parent_volume.parts_count();
-        new_parent_volume.data_mut().volume_count = current_count.max(new_parent_volume_part);
+        let current_part_count = new_parent_volume.parts_count();
+        new_parent_volume.data_mut().volume_count =
+            current_part_count.max(1 + new_parent_volume_part);
 
         // Insert entry.
         new_parent_volume
@@ -279,17 +300,18 @@ impl EntryMut<'_> {
         }
 
         // Update parent volume.
-        let parent_volume_id = self.parent_volume_id().to_owned();
-        let parent_volume = self.index.volumes.get_mut(&parent_volume_id).unwrap();
-        parent_volume.entries.retain(|e| e != &self.id);
+        {
+            let id = self.id.to_owned();
+            let mut parent_volume = self.parent_volume_mut();
+            parent_volume.data_mut().entries.retain(|e| e != &id);
+            let new_volume_count = parent_volume
+                .entries()
+                .map(|e| 1 + e.parent_volume_part())
+                .max()
+                .unwrap_or(0);
 
-        // Update parent volume count.
-        parent_volume.volume_count = parent_volume
-            .entries
-            .iter()
-            .map(|e| self.index.entries.get(e).unwrap().parent_volume.1)
-            .max()
-            .unwrap_or(0);
+            parent_volume.data_mut().volume_count = new_volume_count;
+        }
 
         // Update index registry.
         self.index.entries.remove(&self.id);

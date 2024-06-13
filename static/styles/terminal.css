@@ -10,11 +10,6 @@ h1 {
     margin-bottom: 12px;
 }
 
-mono {
-    font-family: var(--mono);
-    display: inline;
-}
-
 input, button {
     color: var(--content);
     font: 14px var(--sans);
@@ -25,6 +20,10 @@ p, li, textarea {
     color: var(--content);
     font: 11px var(--sans);
     text-align: left;
+}
+
+li + li {
+    margin-top: 6px;
 }
 
 label {

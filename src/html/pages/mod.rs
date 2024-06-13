@@ -2,6 +2,7 @@ use super::*;
 
 pub mod home;
 pub mod profile;
+pub mod volume;
 
 pub fn login(headers: &HeaderMap) -> Markup {
     let login = html! {
@@ -27,7 +28,9 @@ pub fn login(headers: &HeaderMap) -> Markup {
 }
 
 pub fn setup(headers: &HeaderMap, index: &Index) -> Markup {
-    let volumes = index.volumes().filter(|v| v.kind() == volume::Kind::Journal);
+    let volumes = index
+        .volumes()
+        .filter(|v| v.kind() == crate::data::volume::Kind::Journal);
 
     let setup = html! {
         #welcome {

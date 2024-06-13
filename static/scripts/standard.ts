@@ -1,12 +1,11 @@
 const elTitle = document.getElementById("title") as HTMLHeadingElement;
 const elTitleSpan = elTitle.children[0] as HTMLSpanElement;
-const TITLE_MARGIN = 80;
 
 const elPageTitle = document.getElementsByClassName("page-title")[0] as HTMLElement;
 let pageTitleShown = false;
 let pageTitleTimeout: number;
 if (elPageTitle) {
-    window.addEventListener("scroll", () => {
+    addEventListener("scroll", () => {
         let pageTitleBottom = elPageTitle.getBoundingClientRect().bottom;
         let headerBottom = elTitle.getBoundingClientRect().bottom;
         if (pageTitleBottom < headerBottom && !pageTitleShown) {
@@ -33,7 +32,7 @@ if (elPageTitle) {
 }
 
 elTitle.onclick = () => {
-    window.scrollTo({
+    scrollTo({
         left: 0,
         top: 0,
         behavior: "smooth",
@@ -45,11 +44,11 @@ export function titleClick(handler: () => void) {
 }
 
 let scrolledPast = false;
-window.addEventListener("scroll", () => {
+addEventListener("scroll", () => {
     if (elTitle.getBoundingClientRect().top <= -10 && !scrolledPast) {
         document.body.classList.add("scrolled-past");
         scrolledPast = true;
-    } else if (window.scrollY < 10 && scrolledPast) {
+    } else if (scrollY < 10 && scrolledPast) {
         scrolledPast = false;
         document.body.classList.remove("scrolled-past");
     }

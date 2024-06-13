@@ -25,7 +25,7 @@ for (const choice of recordChoices) {
             elChooseEntries.style.marginBottom = "24px";
             elChooseEntries.style.padding = "12px 24px";
             setTimeout(() => {
-                window.scrollBy({
+                scrollBy({
                     behavior: "smooth",
                     top: elChooseEntries.getBoundingClientRect().top - 48,
                 });
@@ -39,7 +39,7 @@ for (const choice of recordChoices) {
             if (!scrolled) {
                 setTimeout(() => {
                     scrolled = true;
-                    window.scrollBy({
+                    scrollBy({
                         behavior: "smooth",
                         top: elConfigure.getBoundingClientRect().top - 48,
                     });

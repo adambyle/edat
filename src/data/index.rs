@@ -350,6 +350,8 @@ impl Index {
             .data_mut()
             .entries
             .insert(index_in_parent, id.clone());
+        let current_part_count = parent_volume.parts_count();
+        parent_volume.data_mut().volume_count = current_part_count.max(1 + parent_volume_part);
         drop(parent_volume);
 
         // Insert into index.

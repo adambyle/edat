@@ -26,7 +26,7 @@ widgetExpandButton.onclick = () => {
         widgetExpandButton.innerText = "Expand";
 
         setTimeout(() => {
-            window.scrollBy({
+            scrollBy({
                 top: elHomepage.getBoundingClientRect().top - 48,
                 behavior: "smooth",
             });
@@ -56,7 +56,7 @@ historyExpandButton.onclick = () => {
         historyExpandButton.innerText = "Show more";
 
         setTimeout(() => {
-            window.scrollBy({
+            scrollBy({
                 top: elHistory.getBoundingClientRect().top - 48,
                 behavior: "smooth",
             });

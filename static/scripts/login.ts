@@ -20,7 +20,7 @@ function login() {
         if (res.status == 200) {
             res.text().then(text => {
                 document.cookie = `edat_user=${text}; Max-Age=31536000`
-                window.location.reload();
+                location.reload();
             });
         } else {
             errorMsg.style.display = "block";

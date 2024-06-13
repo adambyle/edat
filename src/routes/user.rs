@@ -79,7 +79,7 @@ pub async fn set_preferences(
 #[derive(Deserialize)]
 pub struct ReadQuery {
     progress: Option<usize>,
-    entry: bool,
+    entry: Option<bool>,
 }
 
 pub async fn read(
@@ -92,7 +92,7 @@ pub async fn read(
     let user = get_cookie(&headers, "edat_user").unwrap();
     let mut user = index.user_mut(user.to_owned()).unwrap();
 
-    if options.entry {
+    if options.entry.unwrap_or(false) {
         user.finished_entry(id);
     } else if let Some(progress) = options.progress {
         if let Ok(id) = id.parse() {

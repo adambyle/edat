@@ -87,3 +87,38 @@ if (elRecentExpand) {
         }
     }
 }
+
+const searchInput = document.getElementById("search-input") as HTMLInputElement | null;
+if (searchInput) {
+    let numberShown = false;
+
+    addEventListener("scroll", () => {
+        if (numberShown) {
+            return;
+        }
+
+        if (searchInput.getBoundingClientRect().bottom < window.innerHeight) {
+            numberShown = true;
+            let targetNumber = Number.parseInt(
+                searchInput.getAttribute("edat_total")!);
+            let currentNumber = 0;
+
+            const peak = 0.2;
+            const endRate = 0.14;
+
+            setTimeout(() => {
+                setInterval(() => {
+                    const diff = targetNumber - currentNumber;
+                    
+                    const k = Math.PI
+                        - Math.PI ** (1 - currentNumber / targetNumber)
+                        * Math.asin(endRate / peak) ** (currentNumber / targetNumber);
+                    const mult = peak * Math.sin(k);
+
+                    currentNumber += diff * (0.00001 + mult);
+                    searchInput.placeholder = `Search ${Math.ceil(currentNumber)} words of content`;
+                }, 10);
+            }, 500);
+        }
+    });
+}

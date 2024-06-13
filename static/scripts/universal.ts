@@ -40,6 +40,8 @@ export function changeTheme(theme: string) {
     }
 }
 
+(window as any).changeThemeSetting = changeThemeSetting;
+
 export function nowString() {
     const now = new Date(Date.now());
     return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;

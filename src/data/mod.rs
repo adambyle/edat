@@ -2,6 +2,7 @@
 
 use std::fmt::Display;
 
+use chrono::{Datelike, NaiveDate, Utc};
 use comments::CommentData;
 pub use comments::{Comment, Thread};
 use entry::EntryData;
@@ -148,6 +149,14 @@ impl Position<String, u32> {
     }
 }
 
+pub fn date_string(date: &NaiveDate) -> String {
+    if date.year() == Utc::now().year() {
+        date.format("%b %-d").to_string()
+    } else {
+        date.format("%b %-d, %Y").to_string()
+    }
+}
+
 fn create_id(name: &str) -> String {
     let name: String = name
         .replace("<i>", "")
@@ -166,14 +175,20 @@ fn process_text(text: &str) -> String {
         .replace("-.", "–")
         .replace("...", "…");
 
-    let open_quote = Regex::new(r#""\S"#).unwrap();
-    let text = open_quote.replace_all(&text, "“");
+    let open_quote = Regex::new(r#""(\S)"#).unwrap();
+    let text = open_quote.replace_all(&text, r"“$1");
 
     let quote = Regex::new(r#"""#).unwrap();
     let text = quote.replace_all(&text, "”");
 
-    let open_single = Regex::new(r#"(\s')|(^')|(["“”]')"#).unwrap();
+    let open_single = Regex::new(r"(\s)'").unwrap();
+    let text = open_single.replace_all(&text, "$1‘");
+
+    let open_single = Regex::new(r"^'").unwrap();
     let text = open_single.replace_all(&text, "‘");
+
+    let open_single = Regex::new(r#"(["“”])'"#).unwrap();
+    let text = open_single.replace_all(&text, "$1‘");
 
     let quote = Regex::new(r#"'"#).unwrap();
     let text = quote.replace_all(&text, "’");

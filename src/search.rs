@@ -171,6 +171,13 @@ impl Index {
 
         map
     }
+
+    pub fn total_word_count(&self) -> usize {
+        self.sections
+            .iter()
+            .map(|s| s.words.values().map(|w| w.len()).sum::<usize>())
+            .sum()
+    }
 }
 
 impl Default for Index {

@@ -38,7 +38,7 @@ pub struct User<'index> {
 
 macro_rules! immut_fns {
     () => {
-        fn data(&self) -> &super::UserData {
+        pub(super) fn data(&self) -> &super::UserData {
             self.index.users.get(&self.id).unwrap()
         }
 
@@ -197,7 +197,7 @@ pub struct UserMut<'index> {
 }
 
 impl UserMut<'_> {
-    fn data_mut(&mut self) -> &mut super::UserData {
+    pub(super) fn data_mut(&mut self) -> &mut super::UserData {
         self.index.users.get_mut(&self.id).unwrap()
     }
 

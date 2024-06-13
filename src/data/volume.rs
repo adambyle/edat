@@ -277,6 +277,7 @@ impl VolumeMut<'_> {
 
         // Insert volume.
         self.index.volumes.shift_insert(index, id, volume);
+        self.index.save();
 
         Ok(())
     }

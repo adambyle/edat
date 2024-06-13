@@ -375,8 +375,10 @@ impl SectionMut<'_> {
             .retain(|&s| s != id);
 
         // Update user reading history.
-        for user in self.index.users.values_mut() {
-            user.history.retain(|h| h.section != id);
+        let user_ids: Vec<_> = self.index.users.keys().map(|k| k.clone()).collect();
+        for user_id in user_ids {
+            let mut user = self.index.user_mut(user_id).unwrap();
+            user.data_mut().history.retain(|h| h.section != id);
         }
 
         // Update index registry.

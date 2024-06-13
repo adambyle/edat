@@ -30,11 +30,11 @@ pub(super) fn universal(body: Markup, headers: &HeaderMap, resource: &'static st
             head {
                 title { "Every Day’s a Thursday | " (title) }
                 meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
-                link type="text/css" rel="stylesheet" href={"style/" (resource) ".css"};
+                link type="text/css" rel="stylesheet" href={"/style/" (resource) ".css"};
             }
             body class=[dark_theme] {
                 (body)
-                script type="module" src={"script/" (resource) ".js"} {};
+                script type="module" src={"/script/" (resource) ".js"} {};
             }
         }
     }

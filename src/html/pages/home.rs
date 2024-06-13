@@ -3,6 +3,7 @@ use std::fs;
 use rand::prelude::SliceRandom;
 
 use super::*;
+use crate::data::volume::Kind as VolumeKind;
 
 pub fn home<'index>(headers: &HeaderMap, user: &User) -> maud::Markup {
     let introduction = fs::read_to_string("content/edat.intro").unwrap();
@@ -14,7 +15,7 @@ pub fn home<'index>(headers: &HeaderMap, user: &User) -> maud::Markup {
         "conversations-widget" => conversations_widget(user),
         "random-widget" => random_widget(user),
         "extras-widget" => extras_widget(user),
-        "search-widget" => search_widget(user),
+        "search-widget" => search_widget(user.index()),
         _ => html! {},
     });
 
@@ -60,7 +61,7 @@ fn recent_widget(user: &User) -> Markup {
         .sections()
         .filter(|s| {
             s.status() == section::Status::Complete
-                && s.parent_entry().parent_volume().kind() == volume::Kind::Journal
+                && s.parent_entry().parent_volume().kind() == VolumeKind::Journal
         })
         .collect();
 
@@ -71,7 +72,14 @@ fn recent_widget(user: &User) -> Markup {
     // Processes a section into html.
     let section_html = |section: &Section| {
         // Get the previous section.
-        let previous = section.parent_entry().sections().nth(section.index_in_parent() - 1);
+        let index_in_parent = section.index_in_parent();
+        let previous = (index_in_parent > 0).then(|| {
+            section
+                .parent_entry()
+                .sections()
+                .nth(index_in_parent - 1)
+                .unwrap()
+        });
         let previous_already_shown = previous
             .as_ref()
             .is_some_and(|previous| sections.iter().any(|s| s.id() == previous.id()));
@@ -140,7 +148,7 @@ fn recent_widget(user: &User) -> Markup {
                     (section.length()) " words"
                 }
                 span.date {
-                    "Added " (section.date())
+                    "Added " (date_string(&section.date()))
                 }
             }
         };
@@ -150,11 +158,11 @@ fn recent_widget(user: &User) -> Markup {
                 a.section-info href={ "/section/" (section.id()) } {
                     // Volume and entry header.
                     @if expand {
-                        p.volume.detailed { (parent_volume) }
+                        p.volume.detailed { (PreEscaped(parent_volume)) }
                     } @else {
                         p.volume.detailed
                             style="display: none"
-                        { (parent_volume) }
+                        { (PreEscaped(parent_volume)) }
                     }
                     h3 { (PreEscaped(section.parent_entry().title())) }
 
@@ -198,6 +206,11 @@ fn recent_widget(user: &User) -> Markup {
                 @for section in &sections {
                     (section_html(section))
                 }
+                .section {
+                    a .section-info.see-more href="/history" {
+                       p { "See the full history" }
+                    }
+                }
             }
             button id="recent-expand" {
                 @if expand {
@@ -216,7 +229,7 @@ fn library_widget(user: &User) -> Markup {
     let volumes = user
         .index()
         .volumes()
-        .filter(|v| v.kind() == volume::Kind::Journal);
+        .filter(|v| v.kind() == VolumeKind::Journal);
 
     html! {
         .widget #library-widget {
@@ -268,7 +281,7 @@ fn last_widget(user: &User) -> Markup {
                     }
                 }
             } @else {
-                .last-section {
+                .last-section.nothing {
                     p { "You have no unfinished reading to pick up on." }
                 }
             }
@@ -292,24 +305,33 @@ fn random_widget(user: &User) -> Markup {
             if parent_volume.parts_count() == 1 {
                 parent_volume_title.to_owned()
             } else {
-                let part =
-                    roman::to(entry.parent_volume_part() as i32 + 1).unwrap();
+                let part = roman::to(entry.parent_volume_part() as i32 + 1).unwrap();
                 format!("{} vol. {}", parent_volume_title, part)
             }
         };
         html! {
             a.entry href=(url) {
-                p.volume { (parent_volume) }
+                p.volume { (PreEscaped(parent_volume)) }
                 h3 { (PreEscaped(entry.title())) }
                 p.summary { (PreEscaped(entry.summary())) }
             }
         }
     };
 
-    let entry = 'entry: {// Collect all the entries and shuffle them.
-        let mut entries: Vec<_> = user.index().entries().collect();
+    let entry = 'entry: {
+        // Collect all entries that are finished and shuffle them.
+        let mut entries: Vec<_> = user
+            .index()
+            .entries()
+            .filter(|e| {
+                e.section_count() > 0
+                    && !e
+                        .sections()
+                        .any(|s| s.status() != section::Status::Complete)
+            })
+            .collect();
         entries.shuffle(&mut rand::thread_rng());
-    
+
         // Try to find an unstarted entry.
         let mut started_entries = Vec::with_capacity(entries.len());
         for entry in entries {
@@ -328,7 +350,7 @@ fn random_widget(user: &User) -> Markup {
                 }
             }
         }
-    
+
         // Try to find an unfinished entry.
         let mut finished_entries = Vec::with_capacity(started_entries.len());
         for (entry, progress) in started_entries {
@@ -359,7 +381,7 @@ fn random_widget(user: &User) -> Markup {
                 EntryProgress::Finished { last_read } => finished_entries.push((entry, last_read)),
             }
         }
-    
+
         // Otherwise, just pick a random entry.
         let (entry, last_read) = finished_entries.last().unwrap();
         let url = format!("/entry/{}", entry.id());
@@ -368,7 +390,6 @@ fn random_widget(user: &User) -> Markup {
             p.label { "You haven’t read this since " utc { (last_read) } }
         }
     };
-    
 
     html! {
         .widget #random-widget {
@@ -382,11 +403,11 @@ fn extras_widget(user: &User) -> Markup {
     let volumes = user
         .index()
         .volumes()
-        .filter(|v| v.kind() != volume::Kind::Journal && v.kind() != volume::Kind::Featured);
+        .filter(|v| v.kind() != VolumeKind::Journal && v.kind() != VolumeKind::Featured);
 
     html! {
-        .widget #library-widget {
-            h2 { "The library" }
+        .widget #extras-widget {
+            h2 { "Extras" }
             .volumes {
                 @for volume in volumes {
                     a.volume href={ "/volume/" (volume.id()) } {
@@ -402,10 +423,27 @@ fn extras_widget(user: &User) -> Markup {
     }
 }
 
-fn search_widget(user: &User) -> Markup {
+fn search_widget(index: &Index) -> Markup {
+    let word_total = index
+        .sections()
+        .map(|s| s.search_index().total_word_count())
+        .sum::<usize>()
+        + index
+            .entries()
+            .map(|e| e.search_index().total_word_count())
+            .sum::<usize>()
+        + index
+            .volumes()
+            .map(|v| v.search_index().total_word_count())
+            .sum::<usize>();
+
     html! {
         .widget #search-widget {
-
+            h2 { "Global search" }
+            input #search-input type="text" edat_total=(word_total) placeholder={
+                "Search 0 words of content"
+            };
+            p #search-footer { "Enter a word or series of words separated by spaces" }
         }
     }
 }
