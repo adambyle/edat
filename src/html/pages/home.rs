@@ -39,7 +39,7 @@ pub fn home<'index>(headers: &HeaderMap, user: &User) -> maud::Markup {
             }
         }
     };
-    let body = wrappers::standard(body);
+    let body = wrappers::standard(body, Vec::new());
     wrappers::universal(body, &headers, "home", "Home")
 }
 
@@ -189,7 +189,7 @@ fn recent_widget(user: &User) -> Markup {
                 } @else {
                     span.unread-wrapper {
                         span.unread { "Unread" }
-                        button.skip edat-section=(section.id()) { "I’ve already read this" }
+                        button.skip edat-section=(section.id()) { "Mark as read" }
                     }
                 }
                 @if let Some(previous_html) = previous_html {

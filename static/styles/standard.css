@@ -9,7 +9,7 @@ h1 {
     -webkit-backdrop-filter: blur(4px);
     width: 100%;
     transition: 0.2s ease;
-    transition-property: padding, background-color;
+    transition-property: padding;
     position: absolute;
 
     & span {
@@ -58,5 +58,51 @@ main {
         margin: 0 12px;
         font: 11px var(--sans);
         color: var(--content);
+    }
+}
+
+#drawer {
+    position: fixed;
+    display: none;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: var(--clearbg);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border-top: 1px solid var(--content);
+
+    & .drawer-close {
+        position: absolute;
+        top: 12px;
+        right: 24px;
+        font: 11px var(--sans);
+        color: var(--gray);
+        z-index: 3;
+    }
+
+    & .notification {
+        display: none;
+        opacity: 0;
+        transition: opacity 0.1s ease;
+        padding: 6px 12px;
+        
+        & .text {
+            font: 11px var(--sans);
+            color: var(--content);
+        }
+
+        & .open {
+            flex-grow: 1;
+            text-align: right;
+            font: 11px var(--sans);
+            color: var(--content);
+        }
+    }
+
+    & > div {
+        display: none;
+        opacity: 0;
+        transition: opacity 0.1s ease;
     }
 }

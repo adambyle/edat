@@ -45,11 +45,22 @@ p.subtitle {
     &::-webkit-scrollbar {
         display: none;
     }
-
-    .entry {
+    
+    & .entry-wrapper {
         flex: 0 0 calc(100% - 24px);
         scroll-snap-align: center;
+    }
+
+    & .volume-part {
+        font: 14px var(--serif);
+        color: var(--gray);
+        margin-top: 6px;
+        font-style: italic;
+    }
+
+    & .entry {
         position: relative;
+        display: block;
 
         height: 96px;
         padding: 6px 12px;
@@ -87,8 +98,4 @@ p.subtitle {
             }
         }
     }
-}
-
-.carousel {
-    
 }

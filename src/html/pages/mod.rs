@@ -28,6 +28,8 @@ pub fn login(headers: &HeaderMap) -> Markup {
 }
 
 pub fn setup(headers: &HeaderMap, index: &Index) -> Markup {
+    // TODO select all!
+    
     let volumes = index
         .volumes()
         .filter(|v| v.kind() == crate::data::volume::Kind::Journal);
@@ -36,7 +38,7 @@ pub fn setup(headers: &HeaderMap, index: &Index) -> Markup {
         #welcome {
             h1 { "Every Day’s a Thursday" }
             p { "To improve your experience, the website makes recommendations based on your reading log." }
-            p { "If the website ever recommends you something you have already read, please be willing to select \"" b {"I have already read this"} "\" to improve the log." }
+            p { "If the website ever recommends you something you have already read, please be willing to select \"" b {"Mark as read"} "\" to improve the log." }
             p { "Right now, your log does not exist. What would you like the recommendation system to know?" }
             ul {
                 li { "If the system assumes you have read nothing, it will recommend you all the entries, including ones you have read before." }

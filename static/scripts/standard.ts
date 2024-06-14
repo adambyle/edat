@@ -53,3 +53,123 @@ addEventListener("scroll", () => {
         document.body.classList.remove("scrolled-past");
     }
 });
+
+const elDrawer = document.getElementById("drawer") as HTMLDivElement;
+const elDrawerNotification = document
+    .querySelector("#drawer .notification") as HTMLParagraphElement;
+let notificationShowing = false;
+let contentShowing = false;
+let hideNotification: number;
+let drawerCloseEvent = () => {};
+
+function clickOutEvent(ev: MouseEvent) {
+    if (ev.y < elDrawer.getBoundingClientRect().top) {
+        closeDrawer();
+    }
+}
+
+export function drawerNotification(
+    text: string,
+    timeout: number | null,
+    clickAction: HTMLElement | (() => void),
+    closeEvent?: () => void
+) {
+    drawerCloseEvent = closeEvent || drawerCloseEvent;
+    elDrawer.style.display = "block";
+    notificationShowing = true;
+    clearTimeout(hideNotification);
+    elDrawerNotification.children[0].innerHTML = text;
+    elDrawerNotification.style.display = "flex";
+    setTimeout(() => {
+        elDrawerNotification.style.transition = "opacity 0.4s ease";
+        elDrawerNotification.style.opacity = "1";
+    }, 10);
+    setTimeout(() => {
+        elDrawerNotification.style.transition = "opacity 0.1s ease";
+    }, 400);
+    if (timeout) {
+        hideNotification = setTimeout(() => {
+            elDrawerNotification.style.opacity = "0";
+            notificationShowing = false;
+            document.body.style.overflow = "scroll";
+            setTimeout(() => {
+                if (!notificationShowing) {
+                    elDrawerNotification.style.display = "none";
+                    if (!contentShowing) {
+                        elDrawer.style.display = "none";
+                    }
+                }
+            }, 100);
+        }, timeout);
+    }
+
+    elDrawer.onclick = () => {
+        elDrawer.onclick = null;
+        elDrawerNotification.style.opacity = "0";
+        notificationShowing = false;
+        document.body.style.overflow = "hidden";
+        clearTimeout(hideNotification);
+        if (clickAction instanceof HTMLElement) {
+            contentShowing = true;
+            elDrawerNotification.style.opacity = "0";
+            setTimeout(() => {
+                elDrawerNotification.style.display = "none";
+                document.body.addEventListener("click", clickOutEvent);
+                clickAction.style.display = "block";
+                setTimeout(() => {
+                    clickAction.style.opacity = "1";
+                }, 10);
+            }, 100);
+        } else {
+            clickAction();
+            elDrawerNotification.style.opacity = "0";
+            setTimeout(() => {
+                elDrawerNotification.style.display = "none";
+                elDrawer.style.display = "none";
+            }, 100);
+        }
+    };
+}
+
+export function showDrawerElement(el: HTMLElement) {
+    document.body.style.overflow = "hidden";
+    elDrawer.onclick = null;
+    elDrawerNotification.style.opacity = "0";
+    notificationShowing = false;
+    clearTimeout(hideNotification);
+    
+    document.body.addEventListener("click", clickOutEvent);
+    el.style.display = "block";
+    contentShowing = true;
+    setTimeout(() => {
+        el.style.opacity = "1";
+    }, 10);
+}
+
+export function closeDrawer() {
+    document.body.style.overflow = "scroll";
+    elDrawer.onclick = null;
+    clearTimeout(hideNotification);
+    notificationShowing = false;
+    contentShowing = false;
+    document.body.removeEventListener("click", clickOutEvent);
+    
+    for (const child of elDrawer.children) {
+        if (child instanceof HTMLElement) {
+            child.style.opacity = "0";
+            setTimeout(() => {
+                child.style.display = "none";
+            }, 100);
+        }
+    }
+    setTimeout(() => {
+        elDrawer.style.display = "none";
+        drawerCloseEvent();
+    }, 100);
+}
+
+for (const el of document.getElementsByClassName("drawer-close")) {
+    if (el instanceof HTMLElement) {
+        el.onclick = closeDrawer;
+    }
+}

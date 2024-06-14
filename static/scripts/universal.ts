@@ -4,6 +4,8 @@ if (!localStorage.edatTheme) {
 } else if (!document.cookie.includes("edat_theme")) {
     // Force reset theme.
     const theme = localStorage.edatTheme;
+    
+    
     document.cookie = `edat_theme=${theme}; Max-Age=31536000`;
     localStorage.removeItem("edatTheme");
     changeTheme(theme);

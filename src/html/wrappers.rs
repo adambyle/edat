@@ -2,7 +2,7 @@ use maud::DOCTYPE;
 
 use super::*;
 
-pub(super) fn standard(body: Markup) -> Markup {
+pub(super) fn standard(body: Markup, drawers: Vec<Markup>) -> Markup {
     html! {
         h1 #title { span { "Every Day’s a Thursday" } }
         main {
@@ -14,6 +14,15 @@ pub(super) fn standard(body: Markup) -> Markup {
                 a href="/profile" { "PROFILE" }
             }
             (body)
+            #drawer {
+                p.notification {
+                    span.text { }
+                    span.open { "ߍ" }
+                }
+                @for drawer in drawers {
+                    (drawer)
+                }
+            }
         }
     }
 }

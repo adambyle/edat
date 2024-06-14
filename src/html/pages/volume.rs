@@ -4,6 +4,8 @@ use super::*;
 
 pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
     let introduction = volume.intro();
+    let show_intro = !introduction.is_empty();
+
     let entries = volume.entries_by_part();
     let show_volume_num = volume.parts_count() > 1;
 
@@ -75,17 +77,99 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
                 }
             }
         }
-        #intro {
-            h3 { "Introduction" }
-            #intro-text {
-                @for line in introduction.lines() {
-                    p { (PreEscaped(line)) }
+        @if show_intro {
+            #intro {
+                h3 { "Introduction" }
+                #intro-text {
+                    @for line in introduction.lines() {
+                        p { (PreEscaped(line)) }
+                    }
                 }
             }
         }
     };
 
-    let body = wrappers::standard(body);
+    // Gather unfinished entry suggestions.
+    let entries: Vec<_> = volume
+        .entries()
+        .filter_map(|e| {
+            Some(match user.entry_progress(&e) {
+                Some(EntryProgress::Finished { .. }) => return None,
+                Some(EntryProgress::UpToSection {
+                    section_id,
+                    section_index,
+                    ..
+                }) => {
+                    let section = user.index().section(section_id).unwrap();
+                    let description = section.description();
+                    html! {
+                        .suggestion {
+                            a.entry-link href={ "/section/" (section_id) } {
+                                h4 { (PreEscaped(e.title())) }
+                                p.position {
+                                    "Start section "
+                                    (section_index + 1)
+                                }
+                            }
+                            p.description { (description) }
+                            button.skip { "Mark as read" }
+                        }
+                    }
+                }
+                Some(EntryProgress::InSection {
+                    section_id,
+                    section_index,
+                    line,
+                    ..
+                }) => {
+                    let section = user.index().section(section_id).unwrap();
+                    let description = section.description();
+                    html! {
+                        .suggestion {
+                            a.entry-link href={ "/section/" (section_id) "?line=" (line) } {
+                                h4 { (PreEscaped(e.title())) }
+                                p.position {
+                                    "Continue section "
+                                    (section_index + 1)
+                                }
+                            }
+                            p.description { (description) }
+                            button.skip { "Mark as read" }
+                        }
+                    }
+                }
+                None => html! {
+                    .suggestion {
+                        a.entry-link href={ "/entry/" (e.id()) } {
+                            h4 { (PreEscaped(e.title())) }
+                            p.position { "Start this entry" }
+                        }
+                        button.skip { "Mark as read"}
+                    }
+                },
+            })
+        })
+        .collect();
+
+    let drawers = if !entries.is_empty() {
+        vec![html! {
+            #unread-drawer {
+                div {
+                    p.drawer-close { "✕" }
+                    p { "Select an entry name to jump in."}
+                    .unread-entries {
+                        @for entry in entries {
+                            (entry)
+                        }
+                    }
+                }
+            }
+        }]
+    } else {
+        Vec::new()
+    };
+
+    let body = wrappers::standard(body, drawers);
 
     wrappers::universal(body, headers, "volume", volume.title())
 }
@@ -101,6 +185,15 @@ pub fn error(headers: &HeaderMap, id: &str) -> Markup {
 
 pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
     let entry_html = |entry: &Entry| {
+        // Show volume part below the first entry in the part
+        // if the volume has multiple parts.
+        let vol = (entry.index_in_parent_volume_part() == 0
+            && entry.parent_volume().parts_count() > 1)
+            .then_some(format!(
+                "Volume {}",
+                (roman::to(1 + entry.parent_volume_part() as i32).unwrap())
+            ));
+
         let status = 'status: {
             if !entry
                 .sections()
@@ -135,19 +228,24 @@ pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
         };
 
         html! {
-            a.entry href={ "/entry/" (entry.id()) } {
-                h4 { (PreEscaped(entry.title())) }
-                p.description { (PreEscaped(entry.description())) }
-                p.info {
-                    @if entry.length() > 0 {
-                        span.words { (PreEscaped(entry.length_string())) " words" }
+            .entry-wrapper {
+                a.entry href={ "/entry/" (entry.id()) } {
+                    h4 { (PreEscaped(entry.title())) }
+                    p.description { (PreEscaped(entry.description())) }
+                    p.info {
+                        @if entry.length() > 0 {
+                            span.words { (PreEscaped(entry.length_string())) " words" }
+                        }
+                        (status)
                     }
-                    (status)
+                }
+                @if let Some(vol) = vol {
+                    p.volume-part { (vol) }
                 }
             }
         }
     };
-    
+
     let volume_html = |volume: &Volume| {
         html! {
             .volume {
@@ -175,7 +273,7 @@ pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
         }
     };
 
-    let body = wrappers::standard(body);
+    let body = wrappers::standard(body, Vec::new());
 
     wrappers::universal(body, headers, "library", "The library")
 }

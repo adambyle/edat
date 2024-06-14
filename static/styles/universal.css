@@ -51,3 +51,8 @@ a {
     text-decoration: unset;
     color: unset;
 }
+
+button {
+    background: unset;
+    border: unset;
+}
