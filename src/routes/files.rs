@@ -50,7 +50,7 @@ pub async fn archive() -> impl IntoResponse {
     }
 
     let response = static_file(archive_path.clone(), "application/zip");
-    // fs::remove_file(archive_path).unwrap();
+    fs::remove_file(archive_path).unwrap();
     response
 }
 
