@@ -9,6 +9,10 @@ use zip::{write::SimpleFileOptions, ZipWriter};
 
 use super::*;
 
+pub async fn asset(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
+    static_file(format!("assets/{}", file_name), "application/octet-stream")
+}
+
 pub async fn script(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
     static_file(format!("static/scripts/{}", file_name), "text/javascript")
 }

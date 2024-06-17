@@ -1,5 +1,8 @@
 use super::*;
 
+pub mod entry;
+pub mod forum;
+pub mod history;
 pub mod home;
 pub mod profile;
 pub mod volume;
@@ -28,8 +31,6 @@ pub fn login(headers: &HeaderMap) -> Markup {
 }
 
 pub fn setup(headers: &HeaderMap, index: &Index) -> Markup {
-    // TODO select all!
-    
     let volumes = index
         .volumes()
         .filter(|v| v.kind() == crate::data::volume::Kind::Journal);
@@ -55,9 +56,11 @@ pub fn setup(headers: &HeaderMap, index: &Index) -> Markup {
             @for volume in volumes {
                 h2.volume { (PreEscaped(volume.title())) }
                 @for entry in volume.entries() {
-                    .entry edat-entry=(entry.id()) {
-                        h3 { (PreEscaped(entry.title())) }
-                        p { (PreEscaped(entry.description())) }
+                    @if entry.sections().any(|s| s.status() == section::Status::Complete) {
+                        .entry edat-entry=(entry.id()) {
+                            h3 { (PreEscaped(entry.title())) }
+                            p { (PreEscaped(entry.description())) }
+                        }
                     }
                 }
             }

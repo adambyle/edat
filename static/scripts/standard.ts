@@ -121,12 +121,16 @@ export function drawerNotification(
                 }, 10);
             }, 100);
         } else {
-            clickAction();
             elDrawerNotification.style.opacity = "0";
             setTimeout(() => {
-                elDrawerNotification.style.display = "none";
-                elDrawer.style.display = "none";
+                if (!contentShowing) {
+                    elDrawer.style.display = "none";
+                }
+                if (!notificationShowing) {
+                    elDrawerNotification.style.display = "none";
+                }
             }, 100);
+            clickAction();
         }
     };
 }

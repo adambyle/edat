@@ -12,6 +12,7 @@ use crate::AppState;
 
 pub mod auth;
 pub mod cmd;
+pub mod components;
 pub mod files;
 pub mod pages;
 pub mod user;

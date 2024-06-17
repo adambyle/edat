@@ -111,7 +111,7 @@ macro_rules! immut_fns {
 
             for entry in self.entries() {
                 map.entry(entry.parent_volume_part())
-                    .or_insert(Vec::new())
+                    .or_insert_with(Vec::new)
                     .push(entry);
             }
 
@@ -318,7 +318,7 @@ impl Drop for VolumeMut<'_> {
         // Create search index.
         let id = self.id.clone();
         let title = self.title().to_owned();
-        let subtitle = self.subtitle().map(|s| s.clone()).unwrap_or(String::new());
+        let subtitle = self.subtitle().map(|s| s.clone()).unwrap_or_else(String::new);
         let intro = self.intro();
         let search_index = &mut self.data_mut().search_index;
         *search_index = search::Index::new();

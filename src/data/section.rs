@@ -409,7 +409,7 @@ impl Drop for SectionMut<'_> {
 
         // Create search index.
         let id = self.id.clone();
-        let heading = self.heading().map(|h| h.clone()).unwrap_or(String::new());
+        let heading = self.heading().map(|h| h.clone()).unwrap_or_else(String::new);
         let description = self.description().to_owned();
         let summary = self.summary().to_owned();
         let content = self.content();

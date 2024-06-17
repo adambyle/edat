@@ -157,6 +157,10 @@ pub fn date_string(date: &NaiveDate) -> String {
     }
 }
 
+pub fn strip_formatting(text: &str) -> String {
+    text.replace("<i>", "").replace("</i>", "")
+}
+
 fn create_id(name: &str) -> String {
     let name: String = name
         .replace("<i>", "")

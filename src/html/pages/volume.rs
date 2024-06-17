@@ -273,7 +273,26 @@ pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
         }
     };
 
-    let body = wrappers::standard(body, Vec::new());
+    let drawers = vec![html! {
+        #search-drawer {
+            div {
+                p.drawer-close { "✕" }
+                .search-box {
+                    p { "Search the library" }
+                    input
+                        id="search-input"
+                        type="text"
+                        maxlength="40"
+                        placeholder="Search for a collection, entry, or section";
+                }
+                .results {
+    
+                }
+            }
+        }
+    }];
+
+    let body = wrappers::standard(body, drawers);
 
     wrappers::universal(body, headers, "library", "The library")
 }

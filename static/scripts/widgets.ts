@@ -36,3 +36,17 @@ for (const widget of widgets) {
         clickExtras();
     }
 }
+
+const widgetSelectAllButtons = document
+    .getElementsByClassName("widget-select-all") as HTMLCollectionOf<HTMLButtonElement>;
+
+for (const button of widgetSelectAllButtons) {
+    button.onclick = () => {
+        for (const widget of widgets) {
+            const button = widget.children[1] as HTMLButtonElement;
+            if (!button.classList.contains("selected")) {
+                button.click();
+            }
+        }
+    }
+}

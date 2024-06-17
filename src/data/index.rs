@@ -27,6 +27,32 @@ pub struct Index {
 }
 
 impl Index {
+    /// Force a save of every resource in the index.
+    /// 
+    /// This is useful for regenerating search indices when the indexing
+    /// algorithm changes.
+    pub fn save_all(&mut self) {
+        let volume_ids: Vec<_> = self.volumes.keys().cloned().collect();
+        for id in volume_ids {
+            drop(self.volume_mut(id));
+        }
+
+        let entry_ids: Vec<_> = self.entries.keys().cloned().collect();
+        for id in entry_ids {
+            drop(self.entry_mut(id));
+        }
+
+        let section_ids: Vec<_> = self.sections.keys().cloned().collect();
+        for id in section_ids {
+            drop(self.section_mut(id));
+        }
+
+        let user_ids: Vec<_> = self.users.keys().cloned().collect();
+        for id in user_ids {
+            drop(self.user_mut(id));
+        }
+    }
+    
     /// Read data from the filesystem and construct and interface to the journal data.
     pub fn init() -> Self {
         let index_file =

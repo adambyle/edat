@@ -99,3 +99,105 @@ p.subtitle {
         }
     }
 }
+
+#search-drawer > div {
+    height: 60vh;
+    display: flex;
+    gap: 12px;
+    flex-direction: column;
+    padding: 12px 24px 0 24px;
+
+    & .search-box {
+        & p {
+            font: 14px var(--sans);
+            color: var(--content);
+            margin-bottom: 6px;
+        }
+
+        & input {
+            font: 14px var(--sans);
+            color: var(--content);
+            width: 100%;
+            padding: 6px 12px;
+            background: var(--shadow);
+            border: 1px solid var(--content);
+        }
+    }
+
+    & .results {
+        border-width: 1px 0 0 0;
+        border-color: var(--content);
+        border-style: solid;
+        padding: 12px 24px;
+        flex-grow: 1;
+        overflow-y: scroll;
+        scrollbar-width: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        /* gap: 12px; */
+
+        & .no-results, & .lesser-results, & .see-more {
+            font: 14px var(--sans);
+            color: var(--gray);
+            text-align: center;
+        }
+
+        & .see-more-button {
+            font: 14px var(--sans);
+            padding: 6px 12px;
+            background: var(--bg);
+            border: 1px solid var(--content);
+            color: var(--content);
+            text-align: center;
+            margin-top: 6px;
+        }
+
+        & .result:not(:first-child),
+        & .see-more:not(:first-child) {
+            margin-top: 12px;
+        }
+
+        & .lesser-results:not(:first-child) {
+            margin-top: 12px;
+            padding-top: 6px;
+            width: 100%;
+            border-top: 1px solid var(--content);
+            color: var(--content);
+        }
+
+        & .result {
+            width: 100%;
+            
+            & .label {
+                font: 11px var(--sans);
+                color: var(--gray);
+                margin-bottom: 3px;
+            }
+
+            & .result-info {
+                display: block;
+                border: 1px solid var(--content);
+                background: var(--bg);
+                padding: 6px 12px;
+            }
+
+            & h4 {
+                font: 14px var(--serif);
+                color: var(--content);
+            }
+
+            
+            & .details {
+                font: 11px var(--sans);
+                color: var(--gray);
+                margin: 0;
+
+                & b {
+                    font-weight: normal;
+                    color: var(--content);
+                }
+            }
+        }
+    }
+}

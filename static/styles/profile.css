@@ -154,3 +154,14 @@ h1 {
     text-align: left;
     touch-action: manipulation;
 }
+
+.widget-select-all {
+    border: 1px solid var(--content);
+    color: var(--content);
+    background: none;
+    width: 100%;
+    padding: 8px 16px;
+    font: 14px var(--sans);
+    text-align: left;
+    touch-action: manipulation;
+}
