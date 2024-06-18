@@ -6,8 +6,9 @@ const elSearchDrawer = document.getElementById("search-drawer") as HTMLDivElemen
 setTimeout(() => {
     function promptSearch() {
         standard.drawerNotification("Search the library", null, () => {
-            standard.showDrawerElement(elSearchDrawer);
-            searchInput.focus();
+            standard.showDrawerElement(elSearchDrawer, () => {
+                searchInput.focus();
+            });
         }, promptSearch);
     }
 

@@ -140,7 +140,7 @@ macro_rules! immut_fns {
             if length < 2000 {
                 (length / 100 * 100).to_string()
             } else {
-                format!("{}k", (length as f64 / 1000.0).round())
+                format!("{:.1}k", (length as f64 / 1000.0))
             }
         }
 
@@ -298,6 +298,7 @@ impl SectionMut<'_> {
         let content = process_text(&content);
         fs::write(format!("content/sections/{}.txt", self.id), &content);
         let new_lines: Vec<_> = content.lines().collect();
+        self.data_mut().lines = new_lines.len();
 
         // Collect the line numbers that have threads.
         let thread_lines: HashSet<_> = self.data().comments.iter().map(|c| c.line).collect();
@@ -375,7 +376,7 @@ impl SectionMut<'_> {
             .retain(|&s| s != id);
 
         // Update user reading history.
-        let user_ids: Vec<_> = self.index.users.keys().map(|k| k.clone()).collect();
+        let user_ids: Vec<_> = self.index.users.keys().cloned().collect();
         for user_id in user_ids {
             let mut user = self.index.user_mut(user_id).unwrap();
             user.data_mut().history.retain(|h| h.section != id);
@@ -409,7 +410,7 @@ impl Drop for SectionMut<'_> {
 
         // Create search index.
         let id = self.id.clone();
-        let heading = self.heading().map(|h| h.clone()).unwrap_or_else(String::new);
+        let heading = self.heading().cloned().unwrap_or_else(String::new);
         let description = self.description().to_owned();
         let summary = self.summary().to_owned();
         let content = self.content();
@@ -426,6 +427,7 @@ impl Drop for SectionMut<'_> {
         .unwrap();
 
         // Write data.
+        self.data_mut().length = search_index.total_word_count();
         let section = File::create(format!("content/sections/{id}.json")).unwrap();
         serde_json::to_writer_pretty(section, self.data()).unwrap();
     }

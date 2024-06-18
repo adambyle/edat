@@ -133,7 +133,7 @@ impl Index {
 
     pub(super) fn save(&self) {
         let index_file = serde_json::to_string_pretty(&IndexFile {
-            volumes: self.volumes.keys().map(|k| k.clone()).collect(),
+            volumes: self.volumes.keys().cloned().collect(),
             next_section_id: self.next_section_id,
         })
         .expect("error serializing index file");
@@ -428,7 +428,6 @@ impl Index {
         position: Position<String, u32>,
     ) -> DataResult<SectionMut> {
         let id = self.next_section_id;
-        self.next_section_id += 1;
 
         // Make sure this id is not a duplicate.
         if self.sections.contains_key(&id) {
@@ -463,6 +462,10 @@ impl Index {
 
         // Insert into index.
         self.sections.insert(id, section);
+
+        // Increase section id.
+        self.next_section_id += 1;
+        self.save();
 
         Ok(self.section_mut(id).unwrap())
     }

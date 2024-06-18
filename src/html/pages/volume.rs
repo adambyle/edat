@@ -29,13 +29,16 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
                     });
                 }
             }
-            if let Some(last_edited) = last_edited {
-                break 'status html! {
-                    span.incomplete {
-                        "Last edited "
-                        (date_string(&last_edited))
-                    }
-                };
+
+            if entry.sections().any(|s| s.status() != section::Status::Complete) {
+                if let Some(last_edited) = last_edited {
+                    break 'status html! {
+                        span.incomplete {
+                            "Last edited "
+                            (date_string(&last_edited))
+                        }
+                    };
+                }
             }
 
             html! {
@@ -92,6 +95,7 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
     // Gather unfinished entry suggestions.
     let entries: Vec<_> = volume
         .entries()
+        .filter(|e| e.sections().any(|s| s.status() == section::Status::Complete))
         .filter_map(|e| {
             Some(match user.entry_progress(&e) {
                 Some(EntryProgress::Finished { .. }) => return None,
@@ -213,13 +217,16 @@ pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
                     });
                 }
             }
-            if let Some(last_edited) = last_edited {
-                break 'status html! {
-                    span.incomplete {
-                        "Last edited "
-                        (date_string(&last_edited))
-                    }
-                };
+
+            if entry.sections().any(|s| s.status() != section::Status::Complete) {
+                if let Some(last_edited) = last_edited {
+                    break 'status html! {
+                        span.incomplete {
+                            "Last edited "
+                            (date_string(&last_edited))
+                        }
+                    };
+                }
             }
 
             html! {
@@ -283,7 +290,7 @@ pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
                         id="search-input"
                         type="text"
                         maxlength="40"
-                        placeholder="Search for a collection, entry, or section";
+                        placeholder="Search for a collection or entry";
                 }
                 .results {
     

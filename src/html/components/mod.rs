@@ -109,7 +109,7 @@ pub fn library_search(index: &Index, words: &[&str]) -> Markup {
     }
 
     results.sort_by(|r1, r2| match r2.1.cmp(&r1.1) {
-        std::cmp::Ordering::Equal => r1.0.partial_cmp(&r2.0).unwrap(),
+        std::cmp::Ordering::Equal => r2.0.partial_cmp(&r1.0).unwrap(),
         ordering => ordering,
     });
 

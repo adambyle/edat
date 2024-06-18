@@ -223,7 +223,7 @@ pub async fn cmd(
             title: volume.title().to_owned(),
             subtitle: volume
                 .subtitle()
-                .map(|s| s.clone())
+                .cloned()
                 .unwrap_or_else(String::new),
             owner: volume.owner_id().to_owned(),
             content_type: format!("{:?}", volume.kind()),
@@ -276,7 +276,7 @@ pub async fn cmd(
             id: section.id(),
             heading: section
                 .heading()
-                .map(|s| s.clone())
+                .cloned()
                 .unwrap_or_else(String::new),
             description: section.description().to_owned(),
             summary: section.summary().to_owned(),
@@ -296,7 +296,7 @@ pub async fn cmd(
             .map(|v| {
                 (
                     v.id().to_owned(),
-                    v.subtitle().map(|s| s.clone()).unwrap_or("".to_owned()),
+                    v.subtitle().cloned().unwrap_or_else(String::new),
                 )
             })
             .collect();

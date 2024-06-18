@@ -171,7 +171,8 @@
             opacity: 1;
             transition: height, margin, opacity, padding;
             transition-duration: 0.1s;
-            transition-timing-function: ease-out;
+            
+            -timing-function: ease-out;
             overflow: hidden;
 
             & .previous-label {

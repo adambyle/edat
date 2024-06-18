@@ -99,7 +99,21 @@ impl Index {
             .replace("<i>", "***")
             .replace("</i>", "****")
             .replace("<I>", "***")
-            .replace("</I>", "****");
+            .replace("</I>", "****")
+            .replace("/note", "*****")
+            .replace("/aside", "******")
+            .replace("/end", "****")
+            .replace("/img", "****");
+
+        let img_regex = Regex::new(r"/img [\S]+").unwrap();
+        let mut new_text = processed_text.clone();
+        for instance in img_regex.find_iter(&processed_text) {
+            new_text = format!("{}{}{}",
+                &new_text[0..instance.start()],
+                "*".repeat(instance.len()),
+                &new_text[instance.end()..]);
+        }
+
         let word_regex = Regex::new(r"[\p{L}\d’]+").unwrap();
 
         let mut section = Section {
@@ -303,7 +317,7 @@ impl Section {
                 let spans = self
                     .words
                     .get(&word)
-                    .map(|spans| spans.clone())
+                    .cloned()
                     .unwrap_or_else(Vec::new);
 
                 (word, spans)

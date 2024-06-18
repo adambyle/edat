@@ -66,7 +66,7 @@ fn recent_widget(user: &User) -> Markup {
         .collect();
 
     // Sort them by recency.
-    sections.sort_by_key(|s| (s.date(), s.id()));
+    sections.sort_by_key(|s| (s.date(), s.index_in_parent()));
     sections.reverse();
 
     // Processes a section into html.
@@ -145,7 +145,7 @@ fn recent_widget(user: &User) -> Markup {
                     }
                 }
                 span.wordcount {
-                    (section.length()) " words"
+                    (section.length_string()) " words"
                 }
                 span.date {
                     "Added " (date_string(&section.date()))
@@ -203,7 +203,7 @@ fn recent_widget(user: &User) -> Markup {
         .widget #recent-widget {
             h2 { "Recent uploads" }
             #recent-carousel class=(detail_class) {
-                @for section in &sections {
+                @for section in sections.iter().take(10) {
                     (section_html(section))
                 }
                 .section {

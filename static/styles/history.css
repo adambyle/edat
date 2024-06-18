@@ -1,0 +1,53 @@
+@import url("/style/universal.css");
+@import url("/style/standard.css");
+
+h2 {
+    text-align: center;
+    font: bold 28px var(--sans);
+    color: var(--content);
+    margin: 48px 24px 48px 24px;
+}
+
+.section {
+    border-color: var(--gray);
+    border-style: solid;
+    border-width: 1px 0 0 0;
+    padding: 6px 24px;
+    background: var(--shadow);
+    display: block;
+
+    &:last-child, &:has(+ .new-entry) {
+        border-bottom-width: 1px;
+    }
+
+    & h3 {
+        font: 14px var(--serif);
+        color: var(--content);
+    }
+
+    & .description {
+        font: 11px var(--sans);
+        color: var(--content);
+        margin-right: 72px;
+    }
+
+    & .info {
+        font: 11px var(--sans);
+        color: var(--gray);
+        margin-top: 6px;
+        gap: 12px;
+
+        display: flex;
+        position: relative;
+
+        & .unread {
+            color: var(--content);
+            position: absolute;
+            right: 0;
+        }
+    }
+}
+
+.new-entry {
+    margin-top: 12px;
+}

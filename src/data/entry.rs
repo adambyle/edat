@@ -63,6 +63,24 @@ macro_rules! immut_fns {
             self.index.user(self.author_id().to_owned()).unwrap()
         }
 
+        /// The length in words of this entry's content.
+        pub fn length(&self) -> usize {
+            self.sections()
+                .filter(|s| s.status() != section::Status::Missing)
+                .map(|s| s.length())
+                .sum()
+        }
+    
+        /// The length in words of this section's content, as a string.
+        pub fn length_string(&self) -> String {
+            let length = self.length();
+            if length < 2000 {
+                (length / 100 * 100).to_string()
+            } else {
+                format!("{:.1}k", (length as f64 / 1000.0))
+            }
+        }
+
         /// The id of the parent volume.
         pub fn parent_volume_id(&self) -> &str {
             &self.data().parent_volume.0
@@ -130,24 +148,6 @@ impl<'index> Entry<'index> {
             .to_owned()
             .into_iter()
             .map(|s| self.index.section(s).unwrap())
-    }
-
-    /// The length in words of this entry's content.
-    pub fn length(&self) -> usize {
-        self.sections()
-            .filter(|s| s.status() != section::Status::Missing)
-            .map(|s| s.length())
-            .sum()
-    }
-
-    /// The length in words of this section's content, as a string.
-    pub fn length_string(&self) -> String {
-        let length = self.length();
-        if length < 2000 {
-            (length / 100 * 100).to_string()
-        } else {
-            format!("{}k", (length as f64 / 1000.0).round())
-        }
     }
 }
 

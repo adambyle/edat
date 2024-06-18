@@ -135,19 +135,24 @@ export function drawerNotification(
     };
 }
 
-export function showDrawerElement(el: HTMLElement) {
+export function showDrawerElement(el: HTMLElement, then?: () => void) {
     document.body.style.overflow = "hidden";
     elDrawer.onclick = null;
     elDrawerNotification.style.opacity = "0";
     notificationShowing = false;
     clearTimeout(hideNotification);
-    
-    document.body.addEventListener("click", clickOutEvent);
-    el.style.display = "block";
     contentShowing = true;
+
     setTimeout(() => {
-        el.style.opacity = "1";
-    }, 10);
+        document.body.addEventListener("click", clickOutEvent);
+        el.style.display = "block";
+        setTimeout(() => {
+            el.style.opacity = "1";
+            if (then) {
+                then();
+            }
+        }, 10);
+    }, 100);
 }
 
 export function closeDrawer() {
