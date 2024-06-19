@@ -69,6 +69,9 @@ fn recent_widget(user: &User) -> Markup {
     sections.sort_by_key(|s| (s.date(), s.index_in_parent()));
     sections.reverse();
 
+    // Take only the first 10.
+    sections.truncate(10);
+
     // Processes a section into html.
     let section_html = |section: &Section| {
         // Get the previous section.
@@ -80,10 +83,11 @@ fn recent_widget(user: &User) -> Markup {
                 .nth(index_in_parent - 1)
                 .unwrap()
         });
-        let previous_already_shown = previous
-            .as_ref()
-            .is_some_and(|previous| sections.iter().any(|s| s.id() == previous.id()));
-        let previous_html = if previous_already_shown {
+        let omit_previous = previous.as_ref().is_some_and(|previous| {
+            previous.status() != section::Status::Complete
+                || sections.iter().any(|s| s.id() == previous.id())
+        });
+        let previous_html = if omit_previous {
             None
         } else {
             previous.map(|previous| {
@@ -203,7 +207,7 @@ fn recent_widget(user: &User) -> Markup {
         .widget #recent-widget {
             h2 { "Recent uploads" }
             #recent-carousel class=(detail_class) {
-                @for section in sections.iter().take(10) {
+                @for section in &sections {
                     (section_html(section))
                 }
                 .section {
@@ -255,36 +259,40 @@ fn last_widget(user: &User) -> Markup {
         .into_iter()
         .find(|(_, h)| !matches!(h, SectionProgress::Finished { .. }));
 
+    let section = if let Some((ref section, ref progress)) = section {
+        let progress_pp = (progress.line() as f32 / section.lines() as f32 * 100.0).round();
+        html! {
+            a.see-profile href="/profile" {
+                "See reading history in your profile"
+            }
+            a.last-section href={ "/section/" (section.id()) "?line=" (progress.line()) } {
+                h3 { (PreEscaped(section.parent_entry().title())) }
+                p.summary {
+                    (PreEscaped(section.summary()))
+                    span.index {
+                        (1 + section.index_in_parent())
+                        "/"
+                        (section.parent_entry().section_count())
+                    }
+                }
+                p.info {
+                    span.progress { (progress_pp) "% complete" }
+                    span.lastread { "Last read " utc { (progress.timestamp()) } }
+                }
+            }
+        }
+    } else {
+        html! {
+            .last-section.nothing {
+                p { "You have no unfinished reading to pick up on." }
+            }
+        }
+    };
+
     html! {
         .widget #last-widget {
             h2 { "Last read" }
-            @if let Some((ref section, ref progress)) = section {
-                @let progress_pp =
-                    (progress.line() as f32 / section.lines() as f32 * 100.0)
-                    .round();
-                a.see-profile href="/profile" {
-                    "See reading history in your profile"
-                }
-                a.last-section href={ "/section/" (section.id()) "?line=" (progress.line()) } {
-                    h3 { (PreEscaped(section.parent_entry().title())) }
-                    p.summary {
-                        (PreEscaped(section.summary()))
-                        span.index {
-                            (1 + section.index_in_parent())
-                            "/"
-                            (section.parent_entry().section_count())
-                        }
-                    }
-                    p.info {
-                        span.progress { (progress_pp) "% complete" }
-                        span.lastread { "Last read " utc { (progress.timestamp()) } }
-                    }
-                }
-            } @else {
-                .last-section.nothing {
-                    p { "You have no unfinished reading to pick up on." }
-                }
-            }
+            (section)
         }
     }
 }

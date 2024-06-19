@@ -93,6 +93,7 @@ pub async fn read(
     let mut user = index.user_mut(user.to_owned()).unwrap();
 
     if options.entry.unwrap_or(false) {
+        println!("Entry finished!");
         user.finished_entry(id);
     } else if let Some(progress) = options.progress {
         if let Ok(id) = id.parse() {

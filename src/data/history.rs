@@ -43,8 +43,6 @@ impl SectionProgress {
     }
 
     /// The user's progress through this section by line. Includes the time the section was last read.
-    /// 
-    /// If the user has never opened this section or has finished it, returns [`None`].
     pub fn line(&self) -> usize {
         match self {
             Self::Reading {

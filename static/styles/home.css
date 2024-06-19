@@ -376,8 +376,8 @@
         border-style: solid;
         padding: 12px 24px;
         color: var(--content);
-        font: 15px var(--serif);
-        line-height: 22px;
+        font: 14px var(--serif);
+        line-height: 21px;
         
         & p + p {
             margin-top: 12px;

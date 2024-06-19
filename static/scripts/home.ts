@@ -22,7 +22,7 @@ if (elRecentExpand) {
         el.onclick = () => {
             const unreadMessage = el.previousSibling as HTMLSpanElement;
 
-            fetch(`/read/${el.getAttribute("edat-section")}?finished=true`, { method: "POST" }).then(() => {
+            fetch(`/read/${el.getAttribute("edat-section")}`, { method: "POST" }).then(() => {
                 unreadMessage.innerText = "Marked as read";
             });
 

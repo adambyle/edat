@@ -22,8 +22,12 @@ pub struct AppState {
 async fn main() {
     let index_load_start = Instant::now();
     let mut index = data::Index::init();
+    if let Some(arg) = std::env::args().nth(1) {
+        if arg == "reindex" {
+            index.save_all();
+        }
+    }
     let index_load_elapsed = index_load_start.elapsed();
-    index.save_all();
     println!("Index loaded in {index_load_elapsed:?}");
 
     let state = AppState {
@@ -35,7 +39,10 @@ async fn main() {
         .route("/archive", get(routes::files::archive))
         .route("/asset/:file", get(routes::files::asset))
         .route("/cmd", post(routes::cmd::cmd))
-        .route("/components/library-search/:query", get(routes::components::library_search))
+        .route(
+            "/components/library-search/:query",
+            get(routes::components::library_search),
+        )
         .route("/entry/:entry", get(routes::pages::entry))
         .route("/forum", get(routes::pages::forum))
         .route("/history", get(routes::pages::history))
@@ -48,6 +55,7 @@ async fn main() {
         .route("/read/:id", post(routes::user::read))
         .route("/register", post(routes::user::register))
         .route("/script/:file", get(routes::files::script))
+        .route("/section/:id", get(routes::pages::entry_by_section))
         .route("/style/:file", get(routes::files::style))
         .route("/terminal", get(routes::pages::terminal))
         .route("/volume/:volume", get(routes::pages::volume))

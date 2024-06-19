@@ -1,0 +1,116 @@
+@import url("/style/universal.css");
+@import url("/style/standard.css");
+
+h2 {
+    text-align: center;
+    font: 28px var(--serif);
+    color: var(--content);
+    margin: 48px 72px 6px 72px;
+}
+
+.volume {
+    display: block;
+    text-align: center;
+    font: 14px var(--sans);
+    color: var(--gray);
+    margin-bottom: 48px;
+}
+
+.section {
+    & h3 {
+        font: bold 18px var(--serif);
+        color: var(--content);
+        margin-left: 24px;
+        margin-bottom: 18px;
+    }
+}
+
+.divider {
+    margin-top: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    & .line {
+        width: 144px;
+        border-bottom: 1px solid var(--content);
+    }
+
+    & + .section {
+        margin-top: 48px;
+    }
+}
+
+.body {
+    position: relative;
+    
+    & > .lines > p {
+        margin: 0 24px;
+        font: 14px var(--serif);
+        line-height: 21px;
+        color: var(--content);
+
+        & + p {
+            margin-top: 12px;
+        }
+    }
+
+    & .timestamp {
+        font: 11px var(--sans);
+        color: var(--gray);
+        position: absolute;
+        bottom: 100%;
+        left: 24px;
+    }
+
+    & .aside {
+        padding: 6px 24px;
+        font: 14px var(--serif);
+        line-height: 21px;
+        color: var(--content);
+        background: var(--shadow);
+        margin-top: 12px;
+        border-width: 1px 0;
+        border-color: var(--gray);
+        border-style: solid;
+        text-align: center;
+
+        & p:not(.coming-soon) + p {
+            margin-top: 12px;
+        }
+
+        & + p {
+            margin-top: 12px;
+        }
+    }
+
+    & .note {
+        padding: 6px 0 6px 12px;
+        margin: 12px 24px 0 24px;
+        border-left: 1px solid var(--gray);
+        font: 14px var(--serif);
+        line-height: 21px;
+        color: var(--content);
+        font-style: italic;
+
+        & p:not(.note-desc) + p {
+            margin-top: 12px;
+        }
+
+        & + p {
+            margin-top: 12px;
+        }
+
+        & .note-desc {
+            margin-bottom: 0;
+            font: 11px var(--sans);
+            color: var(--gray);
+            font-style: normal;
+            margin-bottom: 6px;
+        }
+
+        & i {
+            font-style: normal;
+        }
+    }
+}

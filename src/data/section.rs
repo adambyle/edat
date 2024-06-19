@@ -146,7 +146,7 @@ macro_rules! immut_fns {
 
         /// The number of lines in this section's content.
         pub fn lines(&self) -> usize {
-            self.data().length
+            self.data().lines
         }
 
         /// The text content of this section.
