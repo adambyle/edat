@@ -74,5 +74,5 @@ async fn listener() -> TcpListener {
 
 #[cfg(not(debug_assertions))]
 async fn listener() -> TcpListener {
-    TcpListener::bind("0.0.0.0:443").await.unwrap()
+    TcpListener::bind("0.0.0.0:80").await.unwrap()
 }
