@@ -125,6 +125,9 @@ macro_rules! immut_fns {
             // Or, find that the user is partway through a section.
             let mut last_read = 0;
             for section in entry.sections() {
+                if section.status() != section::Status::Complete {
+                    continue;
+                }
                 match self.section_progress(&section) {
                     None => {
                         return Some(EntryProgress::UpToSection {

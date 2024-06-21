@@ -39,7 +39,7 @@ pub fn home<'index>(headers: &HeaderMap, user: &User) -> maud::Markup {
             }
         }
     };
-    let body = wrappers::standard(body, Vec::new());
+    let body = wrappers::standard(body, Vec::new(), None);
     wrappers::universal(body, &headers, "home", "Home")
 }
 

@@ -310,7 +310,7 @@
         & h3 {
             font: 18px var(--serif);
             color: var(--content);
-            margin-bottom: 12px;
+            margin-bottom: 6px;
         }
 
         & .summary {

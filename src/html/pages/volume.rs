@@ -30,7 +30,10 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
                 }
             }
 
-            if entry.sections().any(|s| s.status() != section::Status::Complete) {
+            if entry
+                .sections()
+                .any(|s| s.status() != section::Status::Complete)
+            {
                 if let Some(last_edited) = last_edited {
                     break 'status html! {
                         span.incomplete {
@@ -116,7 +119,7 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
                                 }
                             }
                             p.description { (description) }
-                            button.skip { "Mark as read" }
+                            button.skip edat_section=(section_id) { "Mark as read" }
                         }
                     }
                 }
@@ -138,7 +141,7 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
                                 }
                             }
                             p.description { (description) }
-                            button.skip { "Mark as read" }
+                            button.skip edat_section=(section_id) { "Mark as read" }
                         }
                     }
                 }
@@ -148,7 +151,9 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
                             h4 { (PreEscaped(e.title())) }
                             p.position { "Start this entry" }
                         }
-                        button.skip { "Mark as read"}
+                        button.skip edat_section=(
+                            e.sections().next().unwrap().id()
+                        ) { "Mark as read"}
                     }
                 },
             })
@@ -173,7 +178,7 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
         Vec::new()
     };
 
-    let body = wrappers::standard(body, drawers);
+    let body = wrappers::standard(body, drawers, None);
 
     wrappers::universal(body, headers, "volume", volume.title())
 }
@@ -218,7 +223,10 @@ pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
                 }
             }
 
-            if entry.sections().any(|s| s.status() != section::Status::Complete) {
+            if entry
+                .sections()
+                .any(|s| s.status() != section::Status::Complete)
+            {
                 if let Some(last_edited) = last_edited {
                     break 'status html! {
                         span.incomplete {
@@ -293,13 +301,13 @@ pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
                         placeholder="Search for a collection or entry";
                 }
                 .results {
-    
+
                 }
             }
         }
     }];
 
-    let body = wrappers::standard(body, drawers);
+    let body = wrappers::standard(body, drawers, None);
 
     wrappers::universal(body, headers, "library", "The library")
 }

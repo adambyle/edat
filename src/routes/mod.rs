@@ -21,3 +21,7 @@ pub fn get_cookie<'a>(headers: &'a HeaderMap, key: &str) -> Option<&'a str> {
     let cookie = headers.get("Cookie")?.to_str().unwrap();
     cookie.split(&format!("{key}=")).nth(1)?.split(';').next()
 }
+
+pub fn no_cache(body: Markup) -> Response {
+    ([(header::CACHE_CONTROL, "no-store")], body).into_response()
+}

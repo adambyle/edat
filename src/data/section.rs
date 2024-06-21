@@ -319,9 +319,11 @@ impl SectionMut<'_> {
                     }
                 }
                 // Use Levenshtein distance to find closest line.
+                // Omit lines starting with slashes.
                 let lines_and_distances: Vec<_> = new_lines
                     .iter()
                     .enumerate()
+                    .filter(|(_, &l)| !l.starts_with('/'))
                     .map(|(i, &l)| (i, levenshtein(l, old_line)))
                     .collect();
                 let closest_pair = lines_and_distances
@@ -329,13 +331,37 @@ impl SectionMut<'_> {
                     .min_by_key(|&(_, dist)| dist)
                     .unwrap();
 
-                // If the closest line is more than half the length of the old line away,
-                // use the old line.
-                if closest_pair.1 > old_line.len() / 2 {
+                // If the closest line is less than half the length of the old line in distance
+                // away, then it's likely this is what it changed to.
+                if closest_pair.1 < old_line.len() / 2 {
+                    return (old_line_number, closest_pair.0);
+                }
+
+                // Otherwise, we'll revert to the old line.
+                // If the old line now starts with a slash, search for one that doesn't.
+                if !old_line.starts_with('/') {
                     return (old_line_number, old_line_number);
                 }
 
-                (old_line_number, closest_pair.0)
+                // Otherwise, go forward.
+                if let Some((next_good_line, _)) = new_lines
+                    .iter()
+                    .enumerate()
+                    .skip(old_line_number + 1)
+                    .find(|(_, &l)| !l.starts_with('/'))
+                {
+                    return (old_line_number, next_good_line);
+                }
+
+                // Otherwise, go backward.
+                let (prev_good_line, _) = new_lines
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .skip(new_lines.len() - old_line_number)
+                    .find(|(_, &l)| !l.starts_with('/'))
+                    .unwrap();
+                (old_line_number, prev_good_line)
             })
             .collect();
 

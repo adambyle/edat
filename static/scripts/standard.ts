@@ -1,5 +1,30 @@
 const elTitle = document.getElementById("title") as HTMLHeadingElement;
 const elTitleSpan = elTitle.children[0] as HTMLSpanElement;
+const elHeader = document.getElementById("header") as HTMLDivElement;
+
+function showAltTitle() {
+    pageTitleShown = true;
+    clearTimeout(pageTitleTimeout);
+    elTitleSpan.style.opacity = "0.0";
+    pageTitleTimeout = setTimeout(() => {
+        elTitleSpan.classList.add("page-title-ref");
+        elTitleSpan.innerHTML = elPageTitle.innerHTML;
+        elTitleSpan.classList.add("forcesmall");
+        elTitleSpan.style.opacity = "1.0";
+    }, 100);
+}
+
+function hideAltTitle() {
+    pageTitleShown = false;
+    clearTimeout(pageTitleTimeout);
+    elTitleSpan.style.opacity = "0.0";
+    pageTitleTimeout = setTimeout(() => {
+        elTitleSpan.classList.remove("page-title-ref");
+        elTitleSpan.innerHTML = "Every Day’s a Thursday";
+        elTitleSpan.classList.remove("forcesmall");
+        elTitleSpan.style.opacity = "1.0";
+    }, 100);
+}
 
 const elPageTitle = document.getElementsByClassName("page-title")[0] as HTMLElement;
 let pageTitleShown = false;
@@ -8,25 +33,11 @@ if (elPageTitle) {
     addEventListener("scroll", () => {
         let pageTitleBottom = elPageTitle.getBoundingClientRect().bottom;
         let headerBottom = elTitle.getBoundingClientRect().bottom;
-        if (pageTitleBottom < headerBottom && !pageTitleShown) {
-            pageTitleShown = true;
-            clearTimeout(pageTitleTimeout);
-            elTitleSpan.style.opacity = "0.0";
-            pageTitleTimeout = setTimeout(() => {
-                elTitleSpan.classList.add("page-title-ref");
-                elTitleSpan.innerHTML = elPageTitle.innerHTML;
-                elTitleSpan.style.opacity = "1.0";
-            }, 100);
+        if ((pageTitleBottom < headerBottom || topDrawerOpen) && !pageTitleShown) {
+            showAltTitle();
         }
-        if (pageTitleBottom > headerBottom && pageTitleShown) {
-            pageTitleShown = false;
-            clearTimeout(pageTitleTimeout);
-            elTitleSpan.style.opacity = "0.0";
-            pageTitleTimeout = setTimeout(() => {
-                elTitleSpan.classList.remove("page-title-ref");
-                elTitleSpan.innerHTML = "Every Day’s a Thursday";
-                elTitleSpan.style.opacity = "1.0";
-            }, 100);
+        if (pageTitleBottom > headerBottom && !topDrawerOpen && pageTitleShown) {
+            hideAltTitle();
         }
     });
 }
@@ -39,12 +50,8 @@ elTitle.onclick = () => {
     });
 }
 
-export function titleClick(handler: () => void) {
-    elTitle.onclick = handler;
-}
-
 let scrolledPast = false;
-addEventListener("scroll", () => {
+function handleHeader() {
     if (elTitle.getBoundingClientRect().top <= -10 && !scrolledPast) {
         document.body.classList.add("scrolled-past");
         scrolledPast = true;
@@ -52,15 +59,83 @@ addEventListener("scroll", () => {
         scrolledPast = false;
         document.body.classList.remove("scrolled-past");
     }
-});
+}
+addEventListener("scroll", handleHeader);
+handleHeader();
 
+// Top drawer handling.
+const elTopdrawer = document.getElementById("topdrawer") as HTMLDivElement | null;
+let topDrawerOpen = false;
+
+export let closeHeader = () => {};
+
+let onHeaderOpen = () => {};
+export function setOnHeaderOpen(fn: () => void) {
+    onHeaderOpen = fn;
+}
+
+if (elTopdrawer) {
+    function openTopDrawer() {
+        elHeader.classList.add("open");
+        topDrawerOpen = true;
+        document.body.style.overflow = "hidden";
+        if (elPageTitle && !pageTitleShown) {
+            showAltTitle();
+        }
+        elTopdrawer!.style.display = "flex";
+        setTimeout(() => {
+            elTopdrawer!.style.opacity = "1.0";
+            onHeaderOpen();
+        }, 20);
+    }
+
+    function closeTopDrawer() {
+        topDrawerOpen = false;
+        elHeader.classList.remove("open");
+        let headerBottom = elTitle.getBoundingClientRect().bottom;
+        let pageTitleBottom = elPageTitle.getBoundingClientRect().bottom;
+        if (elPageTitle && pageTitleBottom > headerBottom) {
+            hideAltTitle();
+        }
+        elTopdrawer!.style.opacity = "0.0";
+        setTimeout(() => {
+            elTopdrawer!.style.display = "none";
+            document.body.style.overflow = "scroll";
+        }, 100);
+    }
+    closeHeader = closeTopDrawer;
+
+    elTitle.onclick = () => {
+        if (topDrawerOpen) {
+            closeTopDrawer();
+        } else {
+            openTopDrawer();
+        }
+    }
+
+    const closeTopDrawerButton = document
+        .querySelector("#topdrawer .drawer-close") as HTMLButtonElement;
+    closeTopDrawerButton.onclick = closeTopDrawer;
+
+    document.body.addEventListener("click", ev => {
+        if (!topDrawerOpen) {
+            return;
+        }
+        if (ev.y > elTopdrawer.getBoundingClientRect().bottom) {
+            closeTopDrawer();
+        }
+    });
+}
+
+
+// Drawers.
 const elDrawer = document.getElementById("drawer") as HTMLDivElement;
 const elDrawerNotification = document
     .querySelector("#drawer .notification") as HTMLParagraphElement;
 let notificationShowing = false;
 let contentShowing = false;
 let hideNotification: number;
-let drawerCloseEvent = () => {};
+let drawerCloseEvent = () => { };
 
 function clickOutEvent(ev: MouseEvent) {
     if (ev.y < elDrawer.getBoundingClientRect().top) {
@@ -162,7 +237,7 @@ export function closeDrawer() {
     notificationShowing = false;
     contentShowing = false;
     document.body.removeEventListener("click", clickOutEvent);
-    
+
     for (const child of elDrawer.children) {
         if (child instanceof HTMLElement) {
             child.style.opacity = "0";
@@ -177,7 +252,7 @@ export function closeDrawer() {
     }, 100);
 }
 
-for (const el of document.getElementsByClassName("drawer-close")) {
+for (const el of document.querySelectorAll("#drawer .drawer-close")) {
     if (el instanceof HTMLElement) {
         el.onclick = closeDrawer;
     }

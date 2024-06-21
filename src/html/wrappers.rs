@@ -2,9 +2,16 @@ use maud::DOCTYPE;
 
 use super::*;
 
-pub(super) fn standard(body: Markup, drawers: Vec<Markup>) -> Markup {
+pub(super) fn standard(body: Markup, drawers: Vec<Markup>, topdrawer: Option<Markup>) -> Markup {
     html! {
-        h1 #title { span { "Every Day’s a Thursday" } }
+        #header {
+            h1 #title { span { "Every Day’s a Thursday" } }
+            @if let Some(topdrawer) = topdrawer {
+                #topdrawer {
+                    (topdrawer)
+                }
+            }
+        }
         main {
             nav #topnav {
                 a href="/" { "HOME" }

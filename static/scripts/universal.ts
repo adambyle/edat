@@ -1,3 +1,9 @@
+// Handle force reloads.
+if (localStorage.edat_force_reload) {
+    localStorage.removeItem("edat_force_reload");
+    location.reload();
+}
+
 // Theme handling.
 if (!localStorage.edatTheme) {
     changeThemeSetting("system");

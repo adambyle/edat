@@ -32,11 +32,11 @@ pub fn entry(
             }
             if line.starts_with("/img") {
                 let mut parts = line.split(" ").skip(1);
-                let url = parts.next().unwrap();
-                let caption = parts.next().unwrap();
+                let url = parts.next().unwrap_or("");
+                let caption = parts.collect::<Vec<_>>().join(" ");
                 return html! {
                     .img {
-                        img src={ (url) };
+                        img src={ "/image/" (url) ".jpg" };
                         p.caption { (PreEscaped(caption)) }
                         .open {
                             "Expand image"
@@ -45,22 +45,24 @@ pub fn entry(
                 };
             }
 
-            let jump_here = match destination {
+            let (jump_here, jump_section) = match destination {
                 EntryDestination::Section(s) if !jump_found && s == section.id() => {
                     jump_found = true;
-                    true
+                    (true, true)
                 }
                 EntryDestination::Line(s, line)
                     if !jump_found && s == section.id() && i >= line =>
                 {
                     jump_found = true;
-                    true
+                    (true, false)
                 }
-                _ => false,
+                _ => (false, false),
             };
 
             html! {
-                p .textline edat_line=(i) .here[jump_here] { (PreEscaped(line)) }
+                p .textline edat_line=(i) .here[jump_here] .here-section[jump_section] {
+                    (PreEscaped(line))
+                }
             }
         });
 
@@ -142,7 +144,40 @@ pub fn entry(
 
     let drawers = Vec::new();
 
-    let body = wrappers::standard(body, drawers);
+    let topdrawer = html! {
+        p.drawer-close { "✕" }
+        #sectionnav {
+            @for section in entry.sections() {
+                @match section.status() {
+                    section::Status::Complete | section::Status::Incomplete => {
+                        @let unread = user.section_progress(&section).is_none();
+                        @if let Some(heading) = section.heading() {
+                            h3 { (PreEscaped(heading)) }
+                        }
+                        .topsection edat_section=(section.id()) .unread[unread]{
+                            p.summary { (PreEscaped(section.summary())) }
+                            p.status {
+                                span.date { "Added " (crate::data::date_string(&section.date())) }
+                                span.unread {
+                                    @if unread {
+                                        "Unread"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    section::Status::Missing => {
+                        .topsection.missing {
+                            p.summary { (PreEscaped(section.description())) }
+                            p.status { "Coming soon" }
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    let body = wrappers::standard(body, drawers, Some(topdrawer));
 
     wrappers::universal(body, headers, "entry", entry.title())
 }

@@ -114,3 +114,37 @@ h2 {
         }
     }
 }
+
+.img {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 12px 0;
+    border-width: 1px 0;
+    border-color: var(--gray);
+    border-style: solid;
+    padding: 12px 0;
+    background: var(--shadow);
+    
+    & img {
+        width: calc(100% - 96px);
+        border: 1px solid var(--content);
+        display: none;
+        opacity: 0;
+        transition: opacity 0.1s ease;
+        margin-bottom: 6px;
+    }
+
+    & .caption {
+        font: 11px var(--sans);
+        color: var(--content);
+        text-align: center;
+        padding: 0 24px;
+    }
+
+    & .open {
+        font: 11px var(--sans);
+        color: var(--gray);
+        text-align: center;
+    }
+}

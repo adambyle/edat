@@ -173,7 +173,7 @@ pub fn edit_user(user: Option<&UserInfo>) -> maud::Markup {
         label { "First name" }
         input #user-first-name maxlength="30" value=(first_name);
         label { "Last name" }
-        input #user-last-name maxlength = "30" value=(last_name);
+        input #user-last-name maxlength="30" value=(last_name);
         button #submit { "Submit" }
     }
 }
@@ -209,7 +209,7 @@ pub fn edit_volume(volume: Option<&VolumeInfo>) -> maud::Markup {
         label { "Title" }
         input #volume-title maxlength="30" value=(PreEscaped(title));
         label { "Subtitle" }
-        textarea #volume-subtitle maxlength = "150" { (PreEscaped(subtitle)) }
+        textarea #volume-subtitle maxlength="150" { (PreEscaped(subtitle)) }
         button #submit { "Submit" }
     }
 }
@@ -265,9 +265,9 @@ pub fn edit_entry(entry: Option<&EntryInfo>) -> maud::Markup {
         label { "Title" }
         input #entry-title maxlength="30" value=(PreEscaped(title));
         label { "Description" }
-        textarea #entry-description maxlength = "75" { (PreEscaped(description)) }
+        textarea #entry-description maxlength="70" { (PreEscaped(description)) }
         label { "Summary" }
-        textarea #entry-summary maxlength = "150" { (PreEscaped(summary)) }
+        textarea #entry-summary maxlength="150" { (PreEscaped(summary)) }
         button #submit { "Submit" }
     }
 }
@@ -316,7 +316,7 @@ pub fn edit_section(section: Option<&SectionInfo>, date: &str) -> maud::Markup {
         label { "Heading" }
         input #section-heading maxlength="30" value=(PreEscaped(heading));
         label { "Description" }
-        textarea #section-description maxlength="75" { (PreEscaped(description)) }
+        textarea #section-description maxlength="70" { (PreEscaped(description)) }
         label { "Summary" }
         textarea #section-summary maxlength="150" { (PreEscaped(summary)) }
         label { "Added" }

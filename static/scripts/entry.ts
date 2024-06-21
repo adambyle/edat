@@ -1,16 +1,74 @@
 import "./universal.js";
 import "./standard.js";
+import * as standard from "./standard.js";
 
 // Jump to the specified position if one exists.
 const elHere = document.querySelector(".here") as HTMLElement;
 if (elHere) {
+    let scrollOffset: number;
+    if (elHere.classList.contains("here-section")) {
+        scrollOffset = 240;
+    } else {
+        scrollOffset = window.innerHeight;
+    }
+
     setTimeout(() => {
         window.scrollBy({
-            top: elHere.getBoundingClientRect().top - window.innerHeight,
+            top: elHere.getBoundingClientRect().top - scrollOffset,
             behavior: "smooth",
         });
     }, 500);
 }
+
+// Force the page to double-load next time, to update reading records.
+setTimeout(() => {
+    localStorage.setItem("edat_force_reload", "true");
+}, 10000);
+
+// Section navigation.
+const topSections = document
+    .getElementsByClassName("topsection") as HTMLCollectionOf<HTMLElement>;
+for (const section of topSections) {
+    if (!section.classList.contains("missing")) {
+        section.onclick = () => {
+            const sectionId = section.getAttribute("edat_section");
+            const sectionElement = document.querySelector(`.section[edat_section="${sectionId}"]`)!;
+            standard.closeHeader();
+            scrollBy({
+                top: sectionElement.getBoundingClientRect().top - 240,
+                behavior: "smooth",
+            });
+        }
+    }
+}
+
+function updateNav() {
+    for (const section of topSections) {
+        const sectionId = section.getAttribute("edat_section");
+        const status = section.querySelector(".unread");
+        if (!status) {
+            continue;
+        }
+        if (sectionId && sectionId == readingNow.toString()) {
+            status.innerHTML = "Reading now";
+            section.classList.add("reading-now");
+        } else {
+            section.classList.remove("reading-now");
+            if (section.classList.contains("unread")) {
+                status.innerHTML = "Unread";
+            } else {
+                status.innerHTML = "";
+            }
+        }
+    }
+}
+
+standard.setOnHeaderOpen(() => {
+    const elReadingNow = document.querySelector(".reading-now");
+    if (elReadingNow) {
+        elReadingNow.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+});
 
 interface Progress {
     element: HTMLElement,
@@ -29,6 +87,7 @@ window.addEventListener("scroll", startProgressEngine);
 
 let progressEngineStarted = false;
 let sections: Progress[] = [];
+let readingNow = -1;
 function startProgressEngine() {
     if (progressEngineStarted) {
         return;
@@ -61,6 +120,10 @@ function startProgressEngine() {
             const rect = section.element.getBoundingClientRect();
             if (rect.bottom > 0 && rect.top < window.innerHeight) {
                 section.onScreenTime += 0.1;
+                if (readingNow != section.id) {
+                    readingNow = section.id;
+                    updateNav();
+                }
             }
 
             // Determine scanline position.
@@ -78,19 +141,20 @@ function startProgressEngine() {
 
                 // Increment start/end times.
                 if (line == section.lines.item(0)) {
-                    console.log("Start on screen");
                     section.startOnScreenTime += 0.1;
                 }
                 if (line == section.lines.item(section.lines.length - 1)) {
-                    console.log("End on screen");
                     section.endOnScreenTime += 0.1;
                 }
                 if (section.endOnScreenTime >= FINISH_TIMER
                     && section.startOnScreenTime >= FINISH_TIMER
                     && !section.finished
                 ) {
-                    console.log("FINISHED");
                     section.finished = true;
+
+                    const nav = document
+                        .querySelector(`.topsection[edat_section="${section.id}"]`)!;
+                    nav.classList.remove("unread");
                 }
 
                 // Check that we've progressed further.
@@ -105,7 +169,10 @@ function startProgressEngine() {
                     && !section.finished
                 ) {
                     section.progress = line_no;
-                    console.log("Progress ", line_no);
+
+                    const nav = document
+                        .querySelector(`.topsection[edat_section="${section.id}"]`)!;
+                    nav.classList.remove("unread");
                 }
 
                 // If this is the last one, section finished.
@@ -114,7 +181,10 @@ function startProgressEngine() {
                     && !section.finished
                 ) {
                     section.finished = true;
-                    console.log("FINISHED");
+
+                    const nav = document
+                        .querySelector(`.topsection[edat_section="${section.id}"]`)!;
+                    nav.classList.remove("unread");
                 }
             }
         }
@@ -130,3 +200,17 @@ document.addEventListener("visibilitychange", () => {
         }
     }
 });
+
+// Image opening.
+const imgs = document.querySelectorAll(".img") as NodeListOf<HTMLElement>;
+for (const img of imgs) {
+    img.addEventListener("click", () => {
+        const open = img.querySelector(".open")! as HTMLElement;
+        open.style.display = "none";
+        const image = img.querySelector("img")!;
+        image.style.display = "block";
+        setTimeout(() => {
+            image.style.opacity = "1";
+        }, 10);
+    });
+}
