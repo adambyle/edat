@@ -7,6 +7,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use tokio::net::TcpListener;
 
 mod data;
 mod html;
@@ -62,6 +63,16 @@ async fn main() {
         .route("/widgets", post(routes::user::set_widgets))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = listener().await;
     axum::serve(listener, app).await.unwrap();
+}
+
+#[cfg(debug_assertions)]
+async fn listener() -> TcpListener {
+    TcpListener::bind("0.0.0.0:3000").await.unwrap()
+}
+
+#[cfg(not(debug_assertions))]
+async fn listener() -> TcpListener {
+    TcpListener::bind("0.0.0.0:443").await.unwrap()
 }
