@@ -146,6 +146,13 @@ pub fn entry(
 
     let topdrawer = html! {
         p.drawer-close { "✕" }
+        nav #topnav2 {
+            a href="/" { "HOME" }
+            a href="/library" { "LIBRARY" }
+            a href="/history" { "HISTORY" }
+            a href="/forum" { "FORUM" }
+            a href="/profile" { "PROFILE" }
+        }
         #sectionnav {
             @for section in entry.sections() {
                 @match section.status() {
