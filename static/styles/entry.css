@@ -149,11 +149,17 @@ h2 {
     }
 }
 
+#sectionnav {
+    flex-shrink: 1;
+}
+
 #topnav2 {
     padding: 6px;
     text-align: center;
     opacity: 1;
     transition: opacity 0.1s;
+    flex-basis: auto;
+    flex-shrink: 0;
 
     & a {
         margin: 0 12px;
