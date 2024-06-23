@@ -122,14 +122,14 @@ pub fn section(index: &Index, id: u32, words: &[&str]) -> Markup {
             if words.len() > 1 {
                 let mut found_words: HashMap<_, _> = words
                     .iter()
-                    .map(|w| (stemmer.stem(*w).into_owned(), false))
+                    .map(|w| (stemmer.stem(*w).into_owned().to_lowercase(), false))
                     .collect();
 
                 // Get boldened words.
                 let bold_regex = Regex::new(r"<b>(.*?)</b>").unwrap();
                 for instance in bold_regex.find_iter(&line) {
                     let instance = stemmer
-                        .stem(&instance.as_str()[3..instance.len() - 4])
+                        .stem(&instance.as_str().replace("’", "'")[3..instance.len() - 4])
                         .to_lowercase();
 
                     // Mark this boldened word as found.
