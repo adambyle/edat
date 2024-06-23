@@ -59,9 +59,7 @@ p.subtitle {
     }
 
     & .entry {
-        position: relative;
         display: block;
-
         height: 108px;
         padding: 6px 12px;
         position: relative;

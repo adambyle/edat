@@ -1,7 +1,7 @@
 #header {
     background: var(--clearbg);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
     position: absolute;
     width: 100%;
     z-index: 5;
@@ -106,8 +106,8 @@ main {
     left: 0;
     width: 100%;
     background: var(--clearbg);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
     border-top: 1px solid var(--content);
 
     & .drawer-close {

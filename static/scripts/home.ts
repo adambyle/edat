@@ -109,7 +109,7 @@ if (searchInput) {
             setTimeout(() => {
                 setInterval(() => {
                     const diff = targetNumber - currentNumber;
-                    
+
                     const k = Math.PI
                         - Math.PI ** (1 - currentNumber / targetNumber)
                         * Math.asin(endRate / peak) ** (currentNumber / targetNumber);
@@ -121,4 +121,12 @@ if (searchInput) {
             }, 500);
         }
     });
+
+    searchInput.onkeydown = (ev) => {
+        if (ev.key == "Enter") {
+            const words = searchInput.value.split(" ").filter(s => s.length > 0);
+            const search = words.join(",");
+            location.href = `/search/${search}`;
+        }
+    }
 }

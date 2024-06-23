@@ -57,14 +57,9 @@ impl SearchResults {
         })
     }
 
-    /// Whether all the words in the query were found at least once.
-    pub fn all_words_found(&self) -> bool {
-        self.spans.values().all(|spans| spans.0)
-    }
-
     /// Whether all the words in the query were found at least once
     /// in any section.
-    pub fn all_words_found_anywhere(&self) -> bool {
+    pub fn all_words_found(&self) -> bool {
         self.spans.values().any(|spans| spans.0)
     }
 
@@ -75,7 +70,7 @@ impl SearchResults {
     }
 
     /// The total number of words in all sections.
-    pub fn total_word_count(&self) -> usize {
+    pub fn total_hit_count(&self) -> usize {
         self.spans.values().map(|spans| spans.1.len()).sum()
     }
 }
@@ -102,8 +97,7 @@ impl Index {
             .replace("</I>", "****")
             .replace("/note", "*****")
             .replace("/aside", "******")
-            .replace("/end", "****")
-            .replace("/img", "****");
+            .replace("/end", "****");
 
         let img_regex = Regex::new(r"/img [\S]+").unwrap();
         let mut new_text = processed_text.clone();
@@ -113,6 +107,7 @@ impl Index {
                 "*".repeat(instance.len()),
                 &new_text[instance.end()..]);
         }
+        let processed_text = new_text;
 
         let word_regex = Regex::new(r"[\p{L}\d’]+").unwrap();
 

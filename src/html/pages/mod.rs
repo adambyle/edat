@@ -5,6 +5,7 @@ pub mod forum;
 pub mod history;
 pub mod home;
 pub mod profile;
+pub mod search;
 pub mod volume;
 
 pub fn login(headers: &HeaderMap) -> Markup {

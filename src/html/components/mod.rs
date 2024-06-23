@@ -1,30 +1,42 @@
-use crate::search;
+use crate::search as search_tools;
+
+pub mod search;
 
 use super::*;
 
 pub fn library_search(index: &Index, words: &[&str]) -> Markup {
     let mut results = Vec::new();
 
+    let words = {
+        let mut unique_words = Vec::with_capacity(words.len());
+        for word in words {
+            if !unique_words.contains(word) {
+                unique_words.push(word);
+            }
+        }
+        unique_words
+    };
+
     for volume in index.volumes() {
-        let hits = volume.search_index().words(words);
+        let hits = volume.search_index().words(&words);
         let title_hits = hits.for_section("TITLE").unwrap();
         let subtitle_hits = hits.for_section("SUBTITLE").unwrap();
         let intro_hits = hits.for_section("INTRO").unwrap();
 
         // No results in this volume.
-        if title_hits.2.is_empty() && subtitle_hits.2.is_empty() && intro_hits.2.is_empty() {
+        if hits.total_hit_count() == 0 {
             continue;
         }
 
         // Result in title or subtitle.
         if !title_hits.2.is_empty() || !subtitle_hits.2.is_empty() {
-            let title = search::bolden(volume.title(), &title_hits.2);
+            let title = search_tools::bolden(volume.title(), &title_hits.2);
             let subtitle = volume
                 .subtitle()
-                .map(|s| search::bolden(s, &subtitle_hits.2));
+                .map(|s| search_tools::bolden(s, &subtitle_hits.2));
             results.push((
                 hits.total_score(),
-                hits.all_words_found_anywhere(),
+                hits.all_words_found(),
                 html! {
                     .result {
                         p.label { "Collection" }
@@ -43,7 +55,7 @@ pub fn library_search(index: &Index, words: &[&str]) -> Markup {
         // Result in intro.
         results.push((
             hits.total_score(),
-            hits.all_words_found_anywhere(),
+            hits.all_words_found(),
             html! {
                 .result {
                     p.label { "Collection — see intro" }
@@ -60,7 +72,7 @@ pub fn library_search(index: &Index, words: &[&str]) -> Markup {
 
     let mut total_section_hits = 0;
     for entry in index.entries() {
-        let hits = entry.search_index().words(words);
+        let hits = entry.search_index().words(&words);
         let title_hits = hits.for_section("TITLE").unwrap();
         let description_hits = hits.for_section("DESCRIPTION").unwrap();
         let summary_hits = hits.for_section("SUMMARY").unwrap();
@@ -70,9 +82,9 @@ pub fn library_search(index: &Index, words: &[&str]) -> Markup {
         let section_score: f64 = entry
             .sections()
             .map(|s| {
-                let results = s.search_index().words(words);
-                total_section_hits += results.total_word_count();
-                all_words_found_in_section |= results.all_words_found_anywhere();
+                let results = s.search_index().words(&words);
+                total_section_hits += results.total_hit_count();
+                all_words_found_in_section |= results.all_words_found();
                 results.total_score()
             })
             .sum();
@@ -87,15 +99,15 @@ pub fn library_search(index: &Index, words: &[&str]) -> Markup {
         }
 
         let details = if description_hits.0 > summary_hits.0 {
-            search::bolden(entry.description(), description_hits.2)
+            search_tools::bolden(entry.description(), description_hits.2)
         } else {
-            search::bolden(entry.summary(), summary_hits.2)
+            search_tools::bolden(entry.summary(), summary_hits.2)
         };
 
-        let title = search::bolden(entry.title(), title_hits.2);
+        let title = search_tools::bolden(entry.title(), title_hits.2);
         results.push((
             hits.total_score() + section_score,
-            hits.all_words_found_anywhere() || all_words_found_in_section,
+            hits.all_words_found() || all_words_found_in_section,
             html! {
                 .result {
                     p.label { "Entry in " (PreEscaped(entry.parent_volume().title())) }

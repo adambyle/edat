@@ -91,6 +91,29 @@ pub async fn profile(
     Ok(no_cache(html::pages::profile::profile(&headers, &user)))
 }
 
+pub async fn search(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    ReqPath(searches): ReqPath<String>,
+) -> Result<Response, Markup> {
+    let index = state.index.lock().unwrap();
+    let _ = auth::get_user(&headers, &index)?;
+
+    let searches: Vec<_> = searches.split(",").filter(|s| !s.is_empty()).collect();
+
+    Ok(no_cache(html::pages::search::search(&headers, &index, &searches)))
+}
+
+pub async fn search_empty(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> Result<Response, Markup> {
+    let index = state.index.lock().unwrap();
+    let _ = auth::get_user(&headers, &index)?;
+
+    Ok(no_cache(html::pages::search::search(&headers, &index, &[])))
+}
+
 pub async fn terminal(headers: HeaderMap, State(state): State<AppState>) -> Result<Markup, Markup> {
     let index = state.index.lock().unwrap();
     let user = auth::get_user(&headers, &index)?;

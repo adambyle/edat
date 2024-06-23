@@ -1,5 +1,7 @@
 use super::*;
 
+pub mod search;
+
 pub async fn library_search(
     ReqPath(query): ReqPath<String>,
     State(state): State<AppState>,
