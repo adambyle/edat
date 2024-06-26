@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fs::{self, File},
+    fs::{self, File}, hash::{Hash, Hasher},
 };
 
 use chrono::Utc;
@@ -403,5 +403,19 @@ impl Drop for UserMut<'_> {
         // Write data.
         let user = File::create(format!("users/{}.json", self.id)).unwrap();
         serde_json::to_writer_pretty(user, self.data()).unwrap();
+    }
+}
+
+impl PartialEq for User<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for User<'_> {}
+
+impl Hash for User<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
     }
 }

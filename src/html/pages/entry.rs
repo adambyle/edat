@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::*;
 
 pub enum EntryDestination {
@@ -15,23 +17,23 @@ pub fn entry(
     let mut jump_found = false;
     let mut section_html = |section: &Section, complete: bool| {
         let content = section.content();
-        let content = content.lines().enumerate().map(|(i, line)| {
-            if line.starts_with("/note") {
-                let note_desc = line.split("/note ").nth(1);
+        let content = content.lines().enumerate().map(|(line_index, line_text)| {
+            if line_text.starts_with("/note") {
+                let note_desc = line_text.split("/note ").nth(1);
                 return PreEscaped(if let Some(note_desc) = note_desc {
                     format!(r#"<div class="note"><p class="note-desc">{note_desc}</p>"#)
                 } else {
                     format!(r#"<div class="note">"#)
                 });
             }
-            if line.starts_with("/end") {
+            if line_text.starts_with("/end") {
                 return PreEscaped("</div>".to_string());
             }
-            if line.starts_with("/aside") {
+            if line_text.starts_with("/aside") {
                 return PreEscaped(r#"<div class="aside">"#.to_string());
             }
-            if line.starts_with("/img") {
-                let mut parts = line.split(" ").skip(1);
+            if line_text.starts_with("/img") {
+                let mut parts = line_text.split(" ").skip(1);
                 let url = parts.next().unwrap_or("");
                 let caption = parts.collect::<Vec<_>>().join(" ");
                 return html! {
@@ -51,7 +53,7 @@ pub fn entry(
                     (true, true)
                 }
                 EntryDestination::Line(s, line)
-                    if !jump_found && s == section.id() && i >= line =>
+                    if !jump_found && s == section.id() && line_index >= line =>
                 {
                     jump_found = true;
                     (true, false)
@@ -59,9 +61,29 @@ pub fn entry(
                 _ => (false, false),
             };
 
+            let thread = section.comments(line_index);
+            let commenters: HashSet<_> = thread
+                .comments
+                .iter()
+                .map(|c| &c.author)
+                .collect();
+            let author_text = if commenters.len() == 0 {
+                String::new()
+            } else if commenters.len() == 1 {
+                format!("See comments from {}", commenters.iter().next().unwrap().full_name())
+            } else if commenters.len() == 2 {
+                let mut commenters = commenters.iter();
+                format!("See comments from {} and {}", commenters.next().unwrap().first_name(), commenters.next().unwrap().first_name())
+            } else {
+                format!("See comments from {} and {} others", commenters.iter().next().unwrap().first_name(), commenters.len() - 1)
+            };
+
             html! {
-                p .textline edat_line=(i) .here[jump_here] .here-section[jump_section] {
-                    (PreEscaped(line))
+                p.textline edat_line=(line_index) .here[jump_here] .here-section[jump_section] {
+                    (PreEscaped(line_text))
+                    @if commenters.len() > 0 {
+                        span.open-comments { " ●" }
+                    }
                 }
             }
         });

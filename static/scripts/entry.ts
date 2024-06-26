@@ -1,6 +1,108 @@
 import "./universal.js";
+import * as universal from "./universal.js";
 import "./standard.js";
 import * as standard from "./standard.js";
+
+// Comment handling.
+let openComment: HTMLElement | null = null;
+
+let touchTime = 0;
+
+const textlines = document.getElementsByClassName("textline") as HTMLCollectionOf<HTMLElement>;
+
+for (const textline of textlines) {
+    textline.onclick = ev => {
+        const lastClick = touchTime;
+        touchTime = Date.now();
+        if (touchTime - lastClick > 600) {
+            return;
+        }
+        ev.preventDefault();
+        showComments(textline);
+    };
+}
+
+function showComments(lineElement: HTMLElement) {
+    if (lineElement == openComment) {
+        hideComments();
+        return;
+    }
+
+    if (openComment) {
+        hideComments();
+    }
+
+    openComment = lineElement;
+
+    const elThread = document.createElement("div");
+    elThread.id = "thread";
+
+    const elCommentLoading = document.createElement("p");
+    elCommentLoading.id = "comment-loading";
+    elCommentLoading.innerText = "Loading…";
+    elThread.appendChild(elCommentLoading);
+
+    lineElement.after(elThread);
+
+    // Get parent section.
+    const section = lineElement.closest(".section") as HTMLElement;
+    const sectionId = section.getAttribute("edat_section")!;
+    const lineNumber = lineElement.getAttribute("edat_line")!;
+
+    fetch(`/thread/${sectionId}/${lineNumber}`).then((res) => res.text().then(html => {
+        elThread.innerHTML = html;
+        universal.processUtcs();
+        elThread.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+        });
+
+        (elThread.querySelector("#close-comments") as HTMLElement).onclick = hideComments;
+
+        for (const el of elThread.querySelectorAll(".remove") as NodeListOf<HTMLElement>) {
+            el.onclick = () => {
+                const uuid = el.getAttribute("edat_uuid")!;
+                
+                hideComments();
+    
+                fetch(`/remove_comment/${sectionId}/${uuid}`, {
+                    method: "DELETE",
+                }).then(() => {
+                    showComments(lineElement);
+                });
+            }
+        }
+
+        const elUserComment = document.getElementById("user-comment") as HTMLTextAreaElement;
+        if (elUserComment) {
+            elUserComment.onkeydown = ev => {
+                if (ev.key == "Enter") {
+                    ev.preventDefault();
+    
+                    if (elUserComment.value.length == 0) {
+                        return;
+                    }
+                    
+                    hideComments();
+                    fetch(`/comment/${sectionId}/${lineNumber}`, {
+                        method: "POST",
+                        body: elUserComment.value,
+                    }).then(() => {
+                        showComments(lineElement);
+                    });
+                }
+            };
+        }
+    }));
+}
+
+function hideComments() {
+    const elThread = document.getElementById("thread") as HTMLElement;
+    elThread.style.display = "none";
+
+    openComment = null;
+    elThread.remove();
+}
 
 // Jump to the specified position if one exists.
 const elHere = document.querySelector(".here") as HTMLElement;
@@ -86,7 +188,7 @@ interface Progress {
 window.addEventListener("scroll", startProgressEngine);
 
 let progressEngineStarted = false;
-let sections: Progress[] = [];
+let sectionProgresses: Progress[] = [];
 let readingNow = -1;
 function startProgressEngine() {
     if (progressEngineStarted) {
@@ -98,7 +200,7 @@ function startProgressEngine() {
         let section_id = section.getAttribute("edat_section");
         if (section_id) {
             const lines = section.querySelectorAll(".textline");
-            sections.push({
+            sectionProgresses.push({
                 element: section as HTMLElement,
                 id: Number.parseInt(section_id),
                 progress: 0,
@@ -115,7 +217,7 @@ function startProgressEngine() {
     const FINISH_TIMER = 10;
 
     setInterval(() => {
-        for (const section of sections) {
+        for (const section of sectionProgresses) {
             // Section must be onscreen for at least a minute.
             const rect = section.element.getBoundingClientRect();
             if (rect.bottom > 0 && rect.top < window.innerHeight) {
@@ -192,7 +294,7 @@ function startProgressEngine() {
 }
 
 document.addEventListener("visibilitychange", () => {
-    for (const section of sections) {
+    for (const section of sectionProgresses) {
         if (section.finished) {
             navigator.sendBeacon(`/read/${section.id}`);
         } else if (section.progress > 0) {

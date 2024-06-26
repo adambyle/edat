@@ -44,13 +44,14 @@ h2 {
 .body {
     position: relative;
     
-    & > .lines > p {
+    & > .lines > .textline {
         margin: 0 24px;
         font: 14px var(--serif);
         line-height: 21px;
         color: var(--content);
+        position: relative;
 
-        & + p {
+        & + .textline {
             margin-top: 12px;
         }
     }
@@ -75,11 +76,11 @@ h2 {
         border-style: solid;
         text-align: center;
 
-        & p:not(.coming-soon) + p {
+        & .textline:not(.coming-soon) + .textline {
             margin-top: 12px;
         }
 
-        & + p {
+        & + .textline {
             margin-top: 12px;
         }
     }
@@ -93,11 +94,11 @@ h2 {
         color: var(--content);
         font-style: italic;
 
-        & p:not(.note-desc) + p {
+        & .textline:not(.note-desc) + .textline {
             margin-top: 12px;
         }
 
-        & + p {
+        & + .textline {
             margin-top: 12px;
         }
 
@@ -165,5 +166,111 @@ h2 {
         margin: 0 12px;
         font: 11px var(--sans);
         color: var(--content);
+    }
+}
+
+.open-comments {
+    color: var(--gray);
+}
+
+#thread {
+    margin: 12px 0;
+    width: 100vw;
+    border-width: 1px 0;
+    border-color: var(--gray);
+    border-style: solid;
+
+    & #comment-loading {
+        background: var(--shadow);
+        text-align: center;
+        font: 14px var(--sans);
+        color: var(--gray);
+        padding: 6px 24px;
+    }
+
+    & #comments {
+        & #no-comments {
+            background: var(--shadow);
+            text-align: center;
+            font: 14px var(--sans);
+            color: var(--gray);
+            padding: 6px 24px;
+        }
+
+        & #some-comments {
+            background: var(--shadow);
+            text-align: left;
+            font: 14px var(--sans);
+            color: var(--gray);
+            padding: 6px 24px;
+        }
+
+        & .hidden {
+            background: var(--shadow);
+            text-align: center;
+            font: 14px var(--sans);
+            color: var(--gray);
+            padding: 6px 24px;
+        }
+
+        & .comment {
+            padding: 6px 24px;
+            position: relative;
+
+            & .text {
+                font: 14px var(--sans);
+                color: var(--content);
+                margin-bottom: 6px;
+            }
+
+            & .info {
+                display: flex;
+                font: 11px var(--sans);
+                color: var(--gray);
+                gap: 12px;
+
+                & .remove {
+                    color: var(--content);
+                    flex-grow: 1;
+                    text-align: right;
+                }
+            }
+
+            & #close-comments {
+                font: 11px var(--sans);
+                color: var(--gray);
+                text-align: right;
+                position: absolute;
+                top: 6px;
+                right: 24px;
+            }
+
+            & + .comment {
+                border-top: 1px solid var(--gray);
+            }
+        }
+    }
+
+    & #comment-input {
+        border-top: 1px solid var(--gray);
+        padding: 12px 24px;
+
+        #comment-instructions {
+            font: 11px var(--sans);
+            color: var(--gray);
+            margin-bottom: 6px;
+        }
+
+        & textarea {
+            background: var(--shadow);
+            border: 1px solid var(--content);
+            color: var(--content);
+            font: 14px var(--sans);
+            padding: 6px 12px;
+            resize: none;
+            height: 100px;
+            overflow: scroll;
+            width: 100%;
+        }
     }
 }

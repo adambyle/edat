@@ -4,7 +4,7 @@ use std::{
 };
 
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use tokio::net::TcpListener;
@@ -44,6 +44,9 @@ async fn main() {
             "/components/library-search/:query",
             get(routes::components::library_search),
         )
+        .route("/comment/:section/:line", post(routes::post::comment))
+        .route("/remove_comment/:section/:uuid", delete(routes::delete::comment))
+        .route("/thread/:section/:line", get(routes::components::thread))
         .route("/entry/:entry", get(routes::pages::entry))
         .route("/forum", get(routes::pages::forum))
         .route("/history", get(routes::pages::history))

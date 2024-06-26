@@ -13,8 +13,10 @@ use crate::AppState;
 pub mod auth;
 pub mod cmd;
 pub mod components;
+pub mod delete;
 pub mod files;
 pub mod pages;
+pub mod post;
 pub mod user;
 
 pub fn get_cookie<'a>(headers: &'a HeaderMap, key: &str) -> Option<&'a str> {

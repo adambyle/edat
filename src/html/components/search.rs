@@ -98,7 +98,7 @@ pub fn section(index: &Index, id: u32, words: &[&str]) -> Markup {
 
             if !line.contains("<b>") {
                 return html! {
-                    p.line.empty { "..." }
+                    p.line.empty { "…" }
                 };
             }
 

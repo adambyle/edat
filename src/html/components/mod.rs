@@ -21,7 +21,6 @@ pub fn library_search(index: &Index, words: &[&str]) -> Markup {
         let hits = volume.search_index().words(&words);
         let title_hits = hits.for_section("TITLE").unwrap();
         let subtitle_hits = hits.for_section("SUBTITLE").unwrap();
-        let intro_hits = hits.for_section("INTRO").unwrap();
 
         // No results in this volume.
         if hits.total_hit_count() == 0 {
@@ -172,6 +171,75 @@ pub fn library_search(index: &Index, words: &[&str]) -> Markup {
                 (result)
             }
         }
+    }
+}
+
+pub fn thread(user: &User, section: u32, line: usize) -> Markup {
+    let index = user.index();
+    
+    let Ok(section) = index.section(section) else {
+        return html! { "Error" }
+    };
+
+    let thread = section.comments(line);
+
+    let comment_html = |comment: &Comment| {
+        let author = comment.author.first_name();
+        if !comment.show {
+            return html! {
+                .comment.hidden {
+                    (author)
+                    " has removed a message"
+                }
+            };
+        }
+
+        html! {
+            .comment {
+                .text {
+                    (PreEscaped(comment.content.last().unwrap()))
+                }
+                .info {
+                    .author { (comment.author.first_name()) }
+                    utc.date { (comment.timestamp) }
+                    @if comment.content.len() > 1 {
+                        .edited { "Edited" }
+                    }
+                    @if &comment.author == user {
+                        .remove edat_uuid=(comment.uuid) { "Remove" }
+                    }
+                }
+            }
+        }
+    };
+    
+    let input = html! {
+        #comment-input {
+            #comment-instructions {
+                "Reminder: Please make replying to readers a secondary goal."
+            }
+            textarea #user-comment placeholder="Say something about the entry text…" {}
+        }
+    };
+    
+    html! {
+        #comments {
+            @if thread.comments.len() == 0 {
+                #no-comments.comment {
+                    p { "No comments" }
+                    p #close-comments { "✕" }
+                }
+            } @else {
+                #some-comments.comment {
+                    p { "Comments" }
+                    p #close-comments { "✕" }
+                }
+                @for comment in thread.comments {
+                    (comment_html(&comment))
+                }
+            }
+        }
+        (input)
     }
 }
 

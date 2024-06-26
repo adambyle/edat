@@ -238,15 +238,21 @@ impl SectionMut<'_> {
     }
 
     /// Add a comment by a user to the thread at the specified line.
-    pub fn add_comment(&mut self, user: User, line: usize, content: &str) {
+    pub fn add_comment(&mut self, user: String, line: usize, content: &str) -> bool {
+        if self.index.user(user.to_owned()).is_err() {
+            return false;
+        }
+        
         self.data_mut().comments.push(CommentData {
             uuid: rand::thread_rng().gen(),
             content: vec![process_text(content)],
             show: true,
             line,
-            author: user.id.clone(),
+            author: user,
             timestamp: Utc::now().timestamp(),
         });
+
+        true
     }
 
     /// Edit a comment's contents by its UUID.
