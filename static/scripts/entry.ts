@@ -8,6 +8,8 @@ let openComment: HTMLElement | null = null;
 
 let touchTime = 0;
 
+let editUuid: string | null = null;
+
 const textlines = document.getElementsByClassName("textline") as HTMLCollectionOf<HTMLElement>;
 
 for (const textline of textlines) {
@@ -57,6 +59,9 @@ function showComments(lineElement: HTMLElement) {
             block: "center",
         });
 
+        const elCommentInstructions = elThread
+            .querySelector("#comment-instructions") as HTMLElement;
+
         (elThread.querySelector("#close-comments") as HTMLElement).onclick = hideComments;
 
         for (const el of elThread.querySelectorAll(".remove") as NodeListOf<HTMLElement>) {
@@ -73,6 +78,50 @@ function showComments(lineElement: HTMLElement) {
             }
         }
 
+        for (const el of elThread.querySelectorAll(".unremove") as NodeListOf<HTMLElement>) {
+            el.onclick = () => {
+                const uuid = el.getAttribute("edat_uuid")!;
+                
+                hideComments();
+    
+                fetch(`/unremove_comment/${sectionId}/${uuid}`, {
+                    method: "POST",
+                }).then(() => {
+                    showComments(lineElement);
+                });
+            }
+        }
+
+        for (const el of elThread.querySelectorAll(".edit") as NodeListOf<HTMLElement>) {
+            el.onclick = () => {
+                const myUuid = el.getAttribute("edat_uuid")!;
+
+                if (editUuid == myUuid) {
+                    el.innerText = "Edit";
+                    editUuid = null;
+                    const elEditing = document.querySelector(".editing") as HTMLElement;
+                    elEditing.classList.remove("editing");
+                    elUserComment.innerText = "";
+                    return;
+                }
+
+                
+                el.innerText = "Cancel edit";
+                elCommentInstructions.innerText = "Editing highlighted comment…";
+                
+                const elEditing = document.querySelector(".editing") as HTMLElement | null;
+                if (elEditing) {
+                    elEditing.classList.remove("editing");
+                }
+                el.closest(".comment")!.classList.add("editing");
+                
+                elUserComment.innerText
+                    = (el.closest(".comment")!.querySelector(".text")! as HTMLElement).innerText;
+                
+                editUuid = myUuid;
+            }
+        }
+
         const elUserComment = document.getElementById("user-comment") as HTMLTextAreaElement;
         if (elUserComment) {
             elUserComment.onkeydown = ev => {
@@ -84,12 +133,22 @@ function showComments(lineElement: HTMLElement) {
                     }
                     
                     hideComments();
-                    fetch(`/comment/${sectionId}/${lineNumber}`, {
-                        method: "POST",
-                        body: elUserComment.value,
-                    }).then(() => {
-                        showComments(lineElement);
-                    });
+
+                    if (editUuid) {
+                        fetch(`/edit_comment/${sectionId}/${editUuid}`, {
+                            method: "POST",
+                            body: elUserComment.value,
+                        }).then(() => {
+                            showComments(lineElement);
+                        });
+                    } else {
+                        fetch(`/comment/${sectionId}/${lineNumber}`, {
+                            method: "POST",
+                            body: elUserComment.value,
+                        }).then(() => {
+                            showComments(lineElement);
+                        });
+                    }
                 }
             };
         }

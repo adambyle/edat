@@ -45,8 +45,7 @@ async fn main() {
             get(routes::components::library_search),
         )
         .route("/comment/:section/:line", post(routes::post::comment))
-        .route("/remove_comment/:section/:uuid", delete(routes::delete::comment))
-        .route("/thread/:section/:line", get(routes::components::thread))
+        .route("/edit_comment/:section/:uuid", post(routes::post::edit_comment))
         .route("/entry/:entry", get(routes::pages::entry))
         .route("/forum", get(routes::pages::forum))
         .route("/history", get(routes::pages::history))
@@ -58,6 +57,7 @@ async fn main() {
         .route("/profile", get(routes::pages::profile))
         .route("/read/:id", post(routes::user::read))
         .route("/register", post(routes::user::register))
+        .route("/remove_comment/:section/:uuid", delete(routes::delete::comment))
         .route("/script/:file", get(routes::files::script))
         .route("/search", get(routes::pages::search_empty))
         .route("/search/:query", get(routes::pages::search))
@@ -68,6 +68,8 @@ async fn main() {
         .route("/section/:id", get(routes::pages::entry_by_section))
         .route("/style/:file", get(routes::files::style))
         .route("/terminal", get(routes::pages::terminal))
+        .route("/thread/:section/:line", get(routes::components::thread))
+        .route("/unremove_comment/:section/:uuid", post(routes::post::unremove_comment))
         .route("/volume/:volume", get(routes::pages::volume))
         .route("/widgets", post(routes::user::set_widgets))
         .with_state(state);

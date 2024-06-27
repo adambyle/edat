@@ -21,3 +21,35 @@ pub async fn comment(
 
     StatusCode::OK
 }
+
+pub async fn edit_comment(
+    State(state): State<AppState>,
+    ReqPath((section, uuid)): ReqPath<(u32, u128)>,
+    body: String,
+) -> StatusCode {
+    let mut index = state.index.lock().unwrap();
+    
+    let Ok(mut section) = index.section_mut(section) else {
+        return StatusCode::NOT_FOUND;
+    };
+
+    section.edit_comment(uuid, &body);
+
+    StatusCode::OK
+}
+
+pub async fn unremove_comment(
+    State(state): State<AppState>,
+    ReqPath((section, uuid)): ReqPath<(u32, u128)>,
+) -> StatusCode {
+    let mut index = state.index.lock().unwrap();
+    
+    let Ok(mut section) = index.section_mut(section) else {
+        return StatusCode::NOT_FOUND;
+    };
+
+    section.restore_comment(uuid);
+
+    StatusCode::OK
+}
+

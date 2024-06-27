@@ -190,6 +190,9 @@ pub fn thread(user: &User, section: u32, line: usize) -> Markup {
                 .comment.hidden {
                     (author)
                     " has removed a message"
+                    @if &comment.author == user {
+                        .unremove edat_uuid=(comment.uuid) { "Unremove" }
+                    }
                 }
             };
         }
@@ -206,7 +209,10 @@ pub fn thread(user: &User, section: u32, line: usize) -> Markup {
                         .edited { "Edited" }
                     }
                     @if &comment.author == user {
-                        .remove edat_uuid=(comment.uuid) { "Remove" }
+                        .span .user-controls {
+                            .remove edat_uuid=(comment.uuid) { "Remove" }
+                            .edit edat_uuid=(comment.uuid) { "Edit" }
+                        }
                     }
                 }
             }
