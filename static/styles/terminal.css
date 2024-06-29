@@ -98,3 +98,65 @@ img {
 #processing {
     display: none;
 }
+
+@media screen and (min-width: 600px) {
+    body {
+        padding: 48px;
+    }
+
+    h1 {
+        font-size: 25px;
+        margin-bottom: 24px;
+    }
+
+    input, button {
+        font-size: 20px;
+    }
+
+    p, li, textarea {
+        font-size: 15px;
+    }
+
+    li + li {
+        margin-top: 12px;
+    }
+
+    label {
+        font-size: 15px;
+        margin-bottom: 12px;
+    }
+
+    input, textarea, button {
+        padding: 12px 24px;
+    }
+
+    ul {
+        margin-left: 24px;
+        margin-bottom: 24px;
+    }
+    
+    p, input, textarea, button {
+        margin-bottom: 24px;
+    }
+    
+    textarea {
+        height: 120px;
+    }
+    
+    #command {
+        margin-bottom: 12px;
+    }
+    
+    #invalid-command {
+        margin-bottom: 48px;
+    }
+
+    img {
+        width: 50%;
+        margin-bottom: 48px;
+    }
+    
+    #contents {
+        height: 800px;
+    }
+}

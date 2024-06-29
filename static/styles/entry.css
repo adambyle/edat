@@ -299,7 +299,6 @@ h2 {
 @media screen and (min-width: 600px) {
     h2 {
         font-size: 40px;
-        font: 28px var(--serif);
         margin: 96px 144px 12px 144px;
     }
 
