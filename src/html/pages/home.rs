@@ -20,21 +20,25 @@ pub fn home<'index>(headers: &HeaderMap, user: &User) -> maud::Markup {
     });
 
     let body = html! {
-        @for widget in widgets {
-            (widget)
-        }
-        @if user.widgets().is_empty() {
-            .widget #empty-widget {
-                h2 { "Customize your homepage" }
-                p { "You haven’t added any elements to your homepage yet, like quick access to recent entries or library shortcuts, but you can do so in your settings." }
-                a href="/profile" { "Go to settings" }
+        #widgets-wrapper {
+            #widgets {
+                @for widget in widgets {
+                    (widget)
+                }
+                @if user.widgets().is_empty() {
+                    .widget #empty-widget {
+                        h2 { "Customize your homepage" }
+                        p { "You haven’t added any elements to your homepage yet, like quick access to recent entries or library shortcuts, but you can do so in your settings." }
+                        a href="/profile" { "Go to settings" }
+                    }
+                }
             }
-        }
-        .widget #intro-widget {
-            h2 { "Introduction" }
-            .introduction {
-                @for line in introduction.lines() {
-                    p { (PreEscaped(line)) }
+            .widget #intro-widget {
+                h2 { "Introduction" }
+                .introduction {
+                    @for line in introduction.lines() {
+                        p { (PreEscaped(line)) }
+                    }
                 }
             }
         }

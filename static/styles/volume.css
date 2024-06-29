@@ -94,7 +94,7 @@ h2:not(:has(+ .subtitle)) {
         color: var(--content);
     }
 
-    #intro-text {
+    & #intro-text {
         background: var(--shadow);
         border-width: 1px 0;
         border-color: var(--gray);
@@ -175,6 +175,103 @@ h2:not(:has(+ .subtitle)) {
 
         & .suggestion + .suggestion {
             margin-top: 12px;
+        }
+    }
+}
+
+@media screen and (min-width: 600px) {
+    #intro {
+        margin-top: 48px;
+        
+        & h3 {
+            margin-bottom: 24px;
+            font-size: 30px;
+        }
+
+        & #intro-text {
+            border-width: 1px;
+            padding: 24px 48px;
+            font-size: 20px;
+            line-height: 30px;
+            
+            & p + p {
+                margin-top: 24px;
+            }
+        }
+    }
+
+    h2 {
+        font-size: 40px;
+        margin: 96px 144px 12px 144px;
+    }
+
+    h2:not(:has(+ .subtitle)) {
+        margin-bottom: 96px;
+    }
+
+    .subtitle {
+        font-size: 20px;
+        margin-bottom: 96px;
+    }
+
+    .part {
+        & h3 {
+            font-size: 25px;
+            margin-left: 48px;
+            margin-bottom: 12px;
+        }
+    
+        & .entries {
+            border-width: 1px;
+            padding: 24px 48px;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 24px;
+        }
+    
+        & .entry {
+            height: 210px;
+            padding: 12px 24px;
+            max-width: 450px;
+    
+            & h4 {
+                font-size: 25px;
+                margin-bottom: 12px;
+            }
+    
+            & .summary {
+                font-size: 20px;
+            }
+    
+            & .info {
+                bottom: 12px;
+                left: 24px;
+                font-size: 15px;
+                width: calc(100% - 48px);
+            }
+    
+            & + .entry {
+                margin-top: 0;
+            }
+        }
+        
+        & + .part {
+            margin-top: 48px;
+        }
+    }
+}
+
+@media screen and (min-width: 900px) {
+    #intro {
+        & h3 {
+            margin-left: calc(50% - 402px);
+        }
+
+        & #intro-text {
+            margin-left: calc(50% - 450px);
+            margin-right: calc(50% - 450px);
         }
     }
 }

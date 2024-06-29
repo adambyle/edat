@@ -5,7 +5,7 @@ h2 {
     text-align: center;
     font: bold 28px var(--sans);
     color: var(--content);
-    margin: 48px 24px 48px 24px;
+    margin: 48px 24px;
 }
 
 .section {
@@ -50,4 +50,38 @@ h2 {
 
 .new-entry {
     margin-top: 12px;
+}
+
+@media screen and (min-width: 600px) {
+    h2 {
+        font-size: 40px;
+        margin: 96px 48px;
+    }
+
+    .section {
+        border-left-width: 1px;
+        border-right-width: 1px;
+        margin-left: calc(50% - 450px);
+        margin-right: calc(50% - 450px);
+        padding: 6px 24px;
+    
+        & h3 {
+            font-size: 20px;
+        }
+    
+        & .description {
+            font-size: 15px;
+            margin-right: 144px;
+        }
+    
+        & .info {
+            font-size: 15px;
+            margin-top: 12px;
+            gap: 24px;
+        }
+    }
+
+    .new-entry {
+        margin-top: 24px;
+    }
 }

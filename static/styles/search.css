@@ -353,7 +353,10 @@ h1 {
         font: 14px var(--serif);
         line-height: 21px;
         color: var(--content);
-        font-style: italic;
+
+        & > .line {
+            font-style: italic;
+        }
 
         & + .line {
             margin-top: 12px;
@@ -424,4 +427,307 @@ h1 {
     }
 
     /* TODO invisible asides after note */
+}
+
+@media screen and (min-width: 600px) {
+    h1 {
+        margin-top: 48px;
+        margin-left: 48px;
+        font-size: 40px;
+    }
+    
+    #search-wrapper {
+        padding-top: 24px;
+    }
+    
+    .hit-count {
+        margin: 0 48px 12px 48px;
+        font-size: 20px;
+    }
+    
+    #search-input {
+        margin: 0 48px 24px 48px;
+        padding: 12px 24px;
+        font-size: 25px;
+        width: calc(100% - 96px);
+    }
+
+    .carousel {
+        margin-bottom: 24px;
+        
+        padding: 24px 48px;
+        gap: 24px;
+
+        & > * {
+            flex: 0 0 calc(100% - 192px);
+            padding: 12px 24px;
+        }
+    }
+
+    .result {
+        height: 140px;
+        max-width: 350px;
+    
+        & .label {
+            font-size: 15px;
+        }
+    
+        & h4 {
+            font-size: 20px;
+        }
+    
+        & .details {
+            font-size: 15px;
+            margin-top: 12px;
+        }
+
+        &:hover {
+            cursor: pointer;
+        }
+    }
+
+    .subresult {
+        max-width: 350px;
+        height: 110px;
+
+        &:hover {
+            cursor: pointer;
+        }
+    }
+    
+    .meta .name {
+        margin-top: 24px;
+        font-size: 25px;
+    }
+    
+    .section {
+        .section-index {
+            font-size: 15px;
+        }
+    
+        & .details {
+            font-size: 15px;
+            margin-top: 12px;
+        }
+    }
+
+    .hits {
+        bottom: 12px;
+        right: 24px;
+        font-size: 15px;
+    }
+    
+    .carousel-header {
+        margin: 0 48px 12px 48px;
+        font-size: 15px;
+    }
+    
+    .loading {
+        font-size: 20px;
+    }
+    
+    .body {
+        margin: 24px 0;
+    }
+
+    .go {
+        gap: 24px;
+        margin-bottom: 24px;
+        padding: 0 48px;
+    
+        & a {
+            padding: 12px 0;
+            font-size: 20px;
+        }
+    }
+
+    .entry-body, .volume-body {
+        margin: 0 48px;
+        
+        & .label {
+            font-size: 15px;
+        }
+    
+        & .title {
+            font-size: 25px;
+            margin-bottom: 24px;
+        }
+    
+        & .summary, & .description, & .subtitle {
+            margin-top: 12px;
+            font-size: 20px;
+            margin-bottom: 24px;
+        }
+    }
+
+    .intro-body {
+        margin: 0 48px;
+    
+        & .label {
+            font-size: 25px;
+            margin-bottom: 24px;
+        }
+    
+        & .line {
+            font-size: 20px;
+            line-height: 30px;
+    
+            & + .line {
+                margin-top: 24px;
+            }
+        }
+    }
+
+    .section-body {    
+        & .label {
+            font-size: 15px;
+            margin: 0 48px;
+        }
+    
+        & .summary {
+            margin-top: 12px;
+            font-size: 20px;
+            margin: 0 48px;
+            margin-bottom: 24px;
+        }
+    
+        & .heading {
+            font-size: 25px;
+            margin: 0 48px;
+            margin-top: 24px;
+        }
+    
+        & > .line {
+            padding: 0 48px;
+        }
+    
+        & .line {
+            font-size: 20px;
+            line-height: 30px;
+    
+            & + .line {
+                margin-top: 24px;
+            }
+        }
+    
+        & .jump {
+            font-size: 15px;
+            margin-top: 12px;
+            margin-bottom: 24px;
+            padding: 6px 48px;
+    
+            & + .line {
+                margin-top: 24px;
+            }
+
+            &:hover {
+                cursor: pointer;
+            }
+        }
+    
+        & .aside {
+            padding: 12px 48px;
+            font-size: 20px;
+            line-height: 30px;
+            margin-top: 24px;
+            border-width: 1px;
+    
+            & p:not(.coming-soon) + .line {
+                margin-top: 24px;
+            }
+    
+            & + .line {
+                margin-top: 24px;
+            }
+        }
+    
+        & .note {
+            padding: 12px 0 12px 24px;
+            margin: 24px 48px 0 48px;
+            font-size: 20px;
+            line-height: 30px;
+    
+            & + .line {
+                margin-top: 24px;
+            }
+    
+            & .note-desc {
+                font-size: 15px;
+                margin-bottom: 12px;
+            }
+        }
+    
+        .img {
+            margin: 24px 0;
+            border-width: 1px;
+            padding: 24px 0;
+            
+            & img {
+                width: calc(100% - 384px);
+                margin-bottom: 12px;
+            }
+        
+            & .caption {
+                font-size: 15px;
+                padding: 0 48px;
+            }
+        }
+    
+        /* TODO invisible asides after note */
+    }
+}
+
+@media screen and (min-width: 900px) {
+    .entry-body, .volume-body {
+        margin-left: calc(50% - 450px);
+        margin-right: calc(50% - 450px);
+    }
+
+    .intro-body {
+        margin-left: calc(50% - 450px);
+        margin-right: calc(50% - 450px);
+    }
+
+    .section-body {    
+        & .label {
+            margin-left: calc(50% - 450px);
+        }
+    
+        & .summary {
+            margin-left: calc(50% - 450px);
+            margin-right: calc(50% - 450px);
+        }
+    
+        & .heading {
+            margin-left: calc(50% - 450px);
+            margin-right: calc(50% - 450px);
+        }
+    
+        & > .line {
+            padding-left: calc(50% - 450px);
+            padding-right: calc(50% - 450px);
+        }
+    
+        & .jump {
+            padding-left: calc(50% - 450px);
+            padding-right: calc(50% - 450px);
+        }
+    
+        & .aside {
+            padding-left: calc(50% - 450px);
+            padding-right: calc(50% - 450px);
+        }
+    
+        & .note {
+            margin-left: calc(50% - 450px);
+            margin-right: calc(50% - 450px);
+        }
+    
+        .img {
+            margin-left: calc(50% - 450px);
+            margin-right: calc(50% - 450px);
+        }
+    
+        /* TODO invisible asides after note */
+    }
 }

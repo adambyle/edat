@@ -42,7 +42,7 @@ h1 {
         color: var(--content);
         background: none;
         width: 100%;
-        padding: 8px 16px;
+        padding: 6px 12px;
         font: 14px var(--sans);
         text-align: left;
         transition-property: color, background-color;
@@ -149,7 +149,7 @@ h1 {
     color: var(--content);
     background: none;
     width: calc(100% - 48px);
-    padding: 8px 16px;
+    padding: 6px 12px;
     font: 14px var(--sans);
     text-align: left;
     touch-action: manipulation;
@@ -160,8 +160,134 @@ h1 {
     color: var(--content);
     background: none;
     width: 100%;
-    padding: 8px 16px;
+    padding: 6px 12px;
     font: 14px var(--sans);
     text-align: left;
     touch-action: manipulation;
+}
+
+@media screen and (min-width: 600px) {
+    body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+
+        & > * {
+            max-width: 900px;
+        }
+    }
+    
+    h1 {
+        margin-top: 48px;
+        margin-left: 0;
+        font-size: 40px;
+        margin-bottom: 48px;
+    }
+
+    .module {
+        margin-top: 48px;
+    
+        & h2 {
+            margin: 0 48px 24px 48px;
+            font-size: 30px;
+        }
+    
+        & .wrapper {
+            border-width: 1px;
+            padding: 24px 48px;
+    
+            & p {
+                font-size: 20px;
+            }
+        }
+    }
+
+    .widget {
+        margin-top: 24px;
+        
+        & button {
+            padding: 12px 24px;
+            font-size: 20px;
+
+            &:hover {
+                cursor: pointer;
+            }
+        }
+    
+        & h3 {
+            font-size: 25px;
+        }
+    
+        & span {
+            width: 24px;
+            margin-right: 24px;
+            font-size: 25px;
+        }
+    }
+
+    #widgets {
+        margin-top: 24px;
+    }
+    
+    .expand {
+        margin-top: 12px;
+        margin-left: 48px;
+        font-size: 15px;
+
+        &:hover {
+            cursor: pointer;
+        }
+    }
+
+    #history {
+        & .section {
+            padding: 12px 24px;
+            margin-top: 24px;
+    
+            & h3 {
+                font-size: 25px;
+                margin-bottom: 12px;
+            }
+    
+            & .index {
+                font-size: 15px;
+                margin-left: 12px;
+            }
+    
+            & .info {
+                font-size: 15px;
+                margin-top: 24px;
+            }
+    
+            & .lastread {
+                bottom: 12px;
+                right: 24px;
+            }
+        }
+    }
+
+    #contributions p {
+        font-size: 20px;
+        margin: 0 48px;
+    }
+    
+    #home {
+        margin: 48px 48px;
+        width: calc(100% - 96px);
+        padding: 12px 24px;
+        font-size: 20px;
+
+        &:hover {
+            cursor: pointer;
+        }
+    }
+    
+    .widget-select-all {
+        padding: 12px 24px;
+        font-size: 20px;
+
+        &:hover {
+            cursor: pointer;
+        }
+    }
 }

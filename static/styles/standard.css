@@ -1,3 +1,7 @@
+body.lock-scroll {
+    overflow-y: hidden;
+}
+
 #header {
     background: var(--clearbg);
     backdrop-filter: blur(5px);
@@ -16,10 +20,6 @@
         transition: opacity 0.1s ease;
         max-height: 60vh;
         flex-direction: column;
-    
-        & > * {
-            overflow: scroll;
-        }
 
         & .drawer-close {
             position: absolute;
@@ -53,6 +53,7 @@ h1 {
     }
 
     & .page-title-ref {
+        font-size: 21px;
         font-weight: normal;
         font-style: normal;
     }
@@ -124,7 +125,7 @@ main {
         opacity: 0;
         transition: opacity 0.1s ease;
         padding: 6px 12px;
-        
+
         & .text {
             font: 11px var(--sans);
             color: var(--content);
@@ -138,7 +139,7 @@ main {
         }
     }
 
-    & > div {
+    &>div {
         display: none;
         opacity: 0;
         transition: opacity 0.1s ease;
@@ -146,11 +147,13 @@ main {
 }
 
 #sectionnav {
+    overflow-y: auto;
     margin: 0 24px;
     padding: 12px;
     border-top: 1px solid var(--content);
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 12px;
 
     & h3 {
@@ -189,5 +192,118 @@ main {
                 flex-grow: 1;
             }
         }
+    }
+}
+
+@media screen and (min-width: 600px) {
+    #topdrawer {
+        & .drawer-close {
+            bottom: 24px!important;
+            right: 24px!important;
+            font-size: 15px!important;
+
+            &:hover {
+                cursor: pointer;
+            }
+        }
+    }
+
+    h1 {
+        font-size: 40px;
+        padding: 72px 0 48px 0;
+
+        &:hover {
+            cursor: pointer;
+        }
+
+        & .page-title-ref {
+            font-size: 30px;
+        }
+    }
+
+    & .forcesmall {
+        font-size: 30px;
+    }
+
+    .scrolled-past {
+        & h1 {
+            padding: 24px 0;
+            font-size: 30px;
+        }
+    }
+
+    main {
+        padding-top: 175px;
+        margin-bottom: 96px;
+    }
+
+    #topnav {
+        padding: 12px;
+
+        & a {
+            margin: 0 24px;
+            font: 15px var(--sans);
+        }
+    }
+
+    #drawer {
+        & .drawer-close {
+            top: 24px;
+            right: 48px;
+            font-size: 15px;
+
+            &:hover {
+                cursor: pointer;
+            }
+        }
+
+        & .notification {
+            padding: 12px 24px;
+
+            & .text {
+                font-size: 20px;
+            }
+
+            & .open {
+                font-size: 15px;
+            }
+
+            &:hover {
+                cursor: pointer;
+            }
+        }
+    }
+
+    #sectionnav {
+        margin: 0 48px;
+        padding: 24px;
+        gap: 24px;
+
+        & h3 {
+            font-size: 20px;
+        }
+
+        & .topsection {
+            padding: 12px 24px;
+
+            & .summary {
+                font-size: 15px;
+            }
+
+            & .status {
+                margin-top: 12px;
+                font-size: 15px;
+            }
+
+            &:hover {
+                cursor: pointer;
+            }
+        }
+    }
+}
+
+@media screen and (min-width: 900px) {
+    #sectionnav .topsection {
+            width: 600px;
     }
 }

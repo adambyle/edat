@@ -21,14 +21,14 @@ pub(super) fn standard(body: Markup, drawers: Vec<Markup>, topdrawer: Option<Mar
                 a href="/profile" { "PROFILE" }
             }
             (body)
-            #drawer {
-                p.notification {
-                    span.text { }
-                    span.open { "ߍ" }
-                }
-                @for drawer in drawers {
-                    (drawer)
-                }
+        }
+        #drawer {
+            p.notification {
+                span.text { }
+                span.open { "ߍ" }
+            }
+            @for drawer in drawers {
+                (drawer)
             }
         }
     }

@@ -78,7 +78,7 @@ if (elTopdrawer) {
     function openTopDrawer() {
         elHeader.classList.add("open");
         topDrawerOpen = true;
-        document.body.style.overflow = "hidden";
+        lockScroll();
         if (elPageTitle && !pageTitleShown) {
             showAltTitle();
         }
@@ -100,7 +100,7 @@ if (elTopdrawer) {
         elTopdrawer!.style.opacity = "0.0";
         setTimeout(() => {
             elTopdrawer!.style.display = "none";
-            document.body.style.overflow = "scroll";
+            unlockScroll();
         }, 100);
     }
     closeHeader = closeTopDrawer;
@@ -166,7 +166,7 @@ export function drawerNotification(
         hideNotification = setTimeout(() => {
             elDrawerNotification.style.opacity = "0";
             notificationShowing = false;
-            document.body.style.overflow = "scroll";
+            unlockScroll();
             setTimeout(() => {
                 if (!notificationShowing) {
                     elDrawerNotification.style.display = "none";
@@ -182,7 +182,7 @@ export function drawerNotification(
         elDrawer.onclick = null;
         elDrawerNotification.style.opacity = "0";
         notificationShowing = false;
-        document.body.style.overflow = "hidden";
+        lockScroll();
         clearTimeout(hideNotification);
         if (clickAction instanceof HTMLElement) {
             contentShowing = true;
@@ -211,7 +211,7 @@ export function drawerNotification(
 }
 
 export function showDrawerElement(el: HTMLElement, then?: () => void) {
-    document.body.style.overflow = "hidden";
+    lockScroll();
     elDrawer.onclick = null;
     elDrawerNotification.style.opacity = "0";
     notificationShowing = false;
@@ -231,7 +231,7 @@ export function showDrawerElement(el: HTMLElement, then?: () => void) {
 }
 
 export function closeDrawer() {
-    document.body.style.overflow = "scroll";
+    unlockScroll();
     elDrawer.onclick = null;
     clearTimeout(hideNotification);
     notificationShowing = false;
@@ -256,4 +256,12 @@ for (const el of document.querySelectorAll("#drawer .drawer-close")) {
     if (el instanceof HTMLElement) {
         el.onclick = closeDrawer;
     }
+}
+
+function unlockScroll() {
+    document.body.classList.remove("lock-scroll");
+}
+
+function lockScroll() {
+    document.body.classList.add("lock-scroll");
 }

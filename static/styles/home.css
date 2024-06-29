@@ -3,8 +3,13 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
-.widget {
+#widgets {
     margin-top: 24px;
+}
+
+.widget {
+    break-inside: avoid;
+    padding-top: 24px;
 
     & h2 {
         margin: 0 24px 12px 24px;
@@ -79,6 +84,7 @@
         flex: 0 0 calc(100% - 24px);
         scroll-snap-align: center;
         position: relative;
+        max-width: 320px;
 
         & .section-info {
             display: block;
@@ -92,7 +98,6 @@
 
             & .volume {
                 font: 14px var(--serif);
-                font-style: italic;
                 color: var(--gray);
                 opacity: 1;
                 transition: opacity 0.1s ease-out;
@@ -298,7 +303,6 @@
         padding: 6px 12px;
         background: var(--bg);
         border: 1px solid var(--content);
-        height: 144px;
         position: relative;
 
         & .volume {
@@ -381,6 +385,270 @@
         
         & p + p {
             margin-top: 12px;
+        }
+    }
+}
+
+@media screen and (min-width: 1300px) {
+    #widgets-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+}
+
+@media screen and (min-width: 600px) {
+    #widgets {
+        margin-top: 48px;
+        columns: 600px auto;
+        column-gap: 48px;
+        max-width: 1300px;
+    }
+    
+    .widget {
+        padding-top: 48px;
+
+        & h2 {
+            margin: 0 48px 24px 48px;
+            font-size: 30px;
+        }
+    }
+
+    #recent-widget {
+        column-span: all;
+
+        & #recent-expand {
+            font-size: 15px;
+            margin: 12px 48px 0 48px;
+
+            &:hover {
+                cursor: pointer;
+            }
+        }
+    
+        & #recent-carousel {
+            padding: 24px 48px;
+            border-width: 1px;
+            gap: 24px;
+    
+            & .see-more p {
+                font-size: 25px;
+            }
+    
+            &.show-concise {
+                & .section-info {
+                    height: 140px;
+                }
+    
+                & .previous {
+                    padding: 0 24px;
+                }
+            }
+        }
+    
+        & .section {
+            flex: 0 0 calc(100% - 48px);
+            max-width: 500px;
+    
+            & .section-info {
+                padding: 12px 24px;
+                height: 240px;
+    
+                & .volume {
+                    font-size: 20px;
+                }
+    
+                & h3 {
+                    font-size: 25px;
+                    margin-bottom: 24px;
+                }
+    
+                & .description, & .summary {
+                    font-size: 20px;
+                    margin-bottom: 24px;
+                }
+    
+                & .description {
+                    padding-right: 24px;
+                }
+    
+                & .details {
+                    font-size: 15px;
+                    bottom: 12px;
+                    left: 24px;
+                    gap: 24px;
+                }
+            }
+    
+            & .unread-wrapper {
+                margin-top: 12px;
+            }
+    
+            & .unread {
+                font-size: 15px;
+            }
+    
+            & .skip {
+                font-size: 15px;
+
+                &:hover {
+                    cursor: pointer;
+                }
+            }
+    
+            & .read {
+                font-size: 15px;
+                margin-top: 12px;
+            }
+    
+            & .previous {
+                margin-top: 24px;
+                padding: 12px 24px;
+                font-size: 15px;
+                height: 85px;
+            }
+        }
+    }
+
+    #library-widget, #extras-widget {
+        .volumes {
+            padding: 24px 48px;
+            border-width: 1px;
+        }
+    
+        & .volume {
+            gap: 12px;
+            padding: 24px 48px;
+        }
+    
+        & .volume + .volume {
+            margin-top: 24px;
+        }
+    
+        & h3 {
+            font-size: 30px;
+        }
+    
+        & h3:has(+ .subtitle) {
+            padding: 0 48px 12px 48px;
+        }
+    
+        & .subtitle {
+            font-size: 15px;
+        }
+    
+        & .volume-link {
+            font-size: 15px;
+            margin-top: 12px;
+        }
+    }
+
+    #last-widget {
+        & .last-section {
+            padding: 12px 24px;
+            margin: 24px 48px;
+
+            & p {
+                font-size: 20px;
+            }
+    
+            & h3 {
+                font-size: 25px;
+                margin-bottom: 12px;
+            }
+    
+            & .index {
+                font-size: 15px;
+                margin-left: 12px;
+            }
+    
+            & .info {
+                font-size: 15px;
+                margin-top: 24px;
+            }
+    
+            & .lastread {
+                bottom: 12px;
+                right: 24px;
+            }
+        }
+    
+        & .see-profile {
+            margin-left: 48px;
+            margin-top: 12px;
+            font-size: 15px;
+        }
+    }
+
+    #random-widget {
+        & .entry {
+            margin: 0 48px;
+            padding: 12px 24px;
+    
+            & .volume {
+                font-size: 20px;
+            }
+    
+            & h3 {
+                font-size: 25px;
+                margin-bottom: 12px;
+            }
+    
+            & .summary {
+                font-size: 20px;
+                margin-bottom: 24px;
+            }
+        }
+    
+        & .label {
+            margin: 0 48px;
+            margin-top: 12px;
+            font-size: 15px;
+        }
+    }
+
+    #search-widget {
+        & #search-input {
+            width: calc(100% - 96px);
+            margin: 0 48px;
+            padding: 12px 24px;
+            font-size: 25px;
+        }
+    
+        & #search-footer {
+            margin-left: 48px;
+            margin-top: 12px;
+            font-size: 15px;
+        }
+    }
+
+    #empty-widget {
+        & p {
+            font-size: 20px;
+            padding: 0 48px;
+            margin-bottom: 24px;
+        }
+    
+        & a {
+            font-size: 20px;
+            padding: 0 48px;
+        }
+    }
+
+    #intro-widget {
+        max-width: 900px;
+        
+        & .introduction {
+            break-inside: avoid-page;
+
+            border-width: 1px;
+            padding: 24px 48px;
+            font-size: 20px;
+            line-height: 30px;
+            
+            & p + p {
+                margin-top: 24px;
+            }
         }
     }
 }

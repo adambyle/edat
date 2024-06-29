@@ -37,8 +37,7 @@ label {
 
 input {
     font: 14px var(--serif);
-    padding: 4px;
-    border-radius: 8px;
+    padding: 6px 12px;
 }
 
 input, button {
@@ -49,10 +48,52 @@ input, button {
 
 button {
     margin-left: 140px;
-    padding: 8px 16px;
+    padding: 6px 12px;
     font: bold 14px var(--sans);
 }
 
 #error-msg {
     color: red;
+}
+
+@media screen and (min-width: 600px) {
+    body {
+        padding: 48px;
+    }
+
+    h1 {
+        font-size: 40px;
+        margin-bottom: 48px;
+    }
+    
+    p {
+        font-size: 20px;
+        margin-bottom: 24px;
+        max-width: 900px;
+    }
+    
+    ul {
+        padding: 24px 0;
+    }
+    
+    li + li {
+        margin-top: 24px;
+    }
+    
+    label {
+        font-size: 20px;
+        margin-right: 24px;
+        width: 160px;
+    }
+    
+    input {
+        font-size: 20px;
+        padding: 12px 24px;
+    }
+    
+    button {
+        margin-left: 184px;
+        padding: 12px 24px;
+        font-size: 20px;
+    }
 }

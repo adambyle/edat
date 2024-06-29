@@ -118,7 +118,7 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
                                     (section_index + 1)
                                 }
                             }
-                            p.description { (description) }
+                            p.description { (PreEscaped(description)) }
                             button.skip edat_section=(section_id) { "Mark as read" }
                         }
                     }
@@ -140,7 +140,7 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
                                     (section_index + 1)
                                 }
                             }
-                            p.description { (description) }
+                            p.description { (PreEscaped(description)) }
                             button.skip edat_section=(section_id) { "Mark as read" }
                         }
                     }

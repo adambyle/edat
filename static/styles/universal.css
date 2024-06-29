@@ -57,3 +57,9 @@ button {
     background: unset;
     border: unset;
 }
+
+@media screen and (min-width: 600px) {
+    body {
+        margin-bottom: 48px;
+    }
+}

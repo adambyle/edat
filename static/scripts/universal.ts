@@ -11,7 +11,6 @@ if (!localStorage.edatTheme) {
     // Force reset theme.
     const theme = localStorage.edatTheme;
     
-    
     document.cookie = `edat_theme=${theme}; Max-Age=31536000`;
     localStorage.removeItem("edatTheme");
     changeTheme(theme);
@@ -34,8 +33,8 @@ export function changeThemeSetting(themeSetting: string) {
     }
 }
 
-export function changeTheme(theme: string) {
-    if (theme == localStorage.edatTheme) {
+export function changeTheme(theme: string, force = false) {
+    if (theme == localStorage.edatTheme && !force) {
         return;
     }
     localStorage.edatTheme = theme;
@@ -60,6 +59,12 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", ev => {
         changeTheme(ev.matches ? "dark" : "light");
     }
 });
+
+if (localStorage.edatThemeSetting == "system") {
+    matchMedia("(prefers-color-scheme: dark)").matches
+        ? changeTheme("dark", true)
+        : changeTheme("light", true);
+}
 
 const MONTHS = [
     "Jan",

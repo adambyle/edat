@@ -5,10 +5,10 @@ h2 {
     text-align: center;
     font: bold 28px var(--sans);
     color: var(--content);
-    margin: 48px 24px 48px 24px;
+    margin: 48px 24px;
 }
 
-.volume + .volume {
+.volume+.volume {
     margin-top: 24px;
 }
 
@@ -26,7 +26,7 @@ p.subtitle {
 
 .entries {
     margin-top: 6px;
-    
+
     background: var(--shadow);
     border-width: 1px 0;
     border-color: var(--gray);
@@ -45,7 +45,7 @@ p.subtitle {
     &::-webkit-scrollbar {
         display: none;
     }
-    
+
     & .entry-wrapper {
         flex: 0 0 calc(100% - 24px);
         scroll-snap-align: center;
@@ -86,7 +86,8 @@ p.subtitle {
             display: flex;
             width: calc(100% - 24px);
 
-            & .incomplete, & .complete {
+            & .incomplete,
+            & .complete {
                 flex-grow: 1;
                 text-align: right;
             }
@@ -98,7 +99,7 @@ p.subtitle {
     }
 }
 
-#search-drawer > div {
+#search-drawer>div {
     height: 60vh;
     display: flex;
     gap: 12px;
@@ -135,7 +136,9 @@ p.subtitle {
         align-items: center;
         /* gap: 12px; */
 
-        & .no-results, & .lesser-results, & .see-more {
+        & .no-results,
+        & .lesser-results,
+        & .see-more {
             font: 14px var(--sans);
             color: var(--gray);
             text-align: center;
@@ -184,7 +187,6 @@ p.subtitle {
                 font: 14px var(--serif);
                 color: var(--content);
             }
-
             
             & .details {
                 font: 11px var(--sans);
@@ -194,6 +196,149 @@ p.subtitle {
                 & b {
                     font-weight: normal;
                     color: var(--content);
+                }
+            }
+        }
+    }
+}
+
+@media screen and (min-width: 600px) {
+    h2 {
+        font-size: 40px;
+        margin: 96px 48px;
+    }
+
+    #volumes {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .volume {
+        break-inside: avoid;
+        max-width: 100vw;
+    }
+
+    .volume+.volume {
+        margin-top: 48px;
+    }
+
+    h3 {
+        max-width: 900px;
+        margin-left: max(48px, calc(50% - 650px));
+        font-size: 25px;
+    }
+
+    p.subtitle {
+        font-size: 20px;
+        margin-left: max(48px, calc(50% - 650px));
+    }
+
+    .entries {
+        margin-top: 12px;
+
+        border-width: 1px;
+        padding: 24px max(48px, calc(50% - 650px));
+
+        gap: 24px;
+
+        & .entry-wrapper {
+            flex: 0 0 calc(100% - 48px);
+        }
+
+        & .volume-part {
+            font-size: 20px;
+            margin-top: 12px;
+        }
+
+        & .entry-wrapper {
+            max-width: 450px;
+        }
+
+        & .entry {
+            padding: 12px 24px 48px 24px;
+            height: 160px;
+
+            & h4 {
+                font-size: 25px;
+                margin-bottom: 12px;
+            }
+
+            & .description {
+                font-size: 20px;
+            }
+
+            & .info {
+                bottom: 12px;
+                left: 24px;
+                font-size: 15px;
+                width: calc(100% - 48px);
+            }
+        }
+    }
+
+    #search-drawer>div {
+        height: 60vh;
+        gap: 24px;
+        padding: 24px calc(50% - 650px) 0 calc(50% - 650px);
+
+        & .search-box {
+            & p {
+                font-size: 20px;
+                margin-bottom: 12px;
+            }
+
+            & input {
+                font-size: 20px;
+                width: 100%;
+                padding: 12px 24px;
+            }
+        }
+
+        & .results {
+            border-width: 1px 0 0 0;
+            padding: 24px calc(50% - 300px);
+            overflow-y: scroll;
+
+            & .no-results,
+            & .lesser-results,
+            & .see-more {
+                font-size: 20px;
+            }
+
+            & .see-more-button {
+                font-size: 20px;
+                padding: 12px 24px;
+                margin-top: 12px;
+            }
+
+            & .result:not(:first-child),
+            & .see-more:not(:first-child) {
+                margin-top: 24px;
+            }
+
+            & .lesser-results:not(:first-child) {
+                margin-top: 24px;
+                padding-top: 12px;
+            }
+
+            & .result {
+                & .label {
+                    font-size: 15px;
+                    margin-bottom: 6px;
+                }
+
+                & .result-info {
+                    padding: 12px 24px;
+                }
+
+                & h4 {
+                    font-size: 20px;
+                }
+
+
+                & .details {
+                    font-size: 15px;
                 }
             }
         }
