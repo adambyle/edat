@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use std::{collections::HashMap, mem};
 
 use indexmap::IndexMap;

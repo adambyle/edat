@@ -563,6 +563,17 @@ function parseCommand(command: string) {
                 id: section,
             },
         });
+    } else if (root == "init") {
+        if (!expectArgs(2)) {
+            return;
+        }
+        const user = args[1];
+        submitAction = updateUser(user);
+        cmd({
+            InitUser: {
+                id: user,
+            },
+        });
     } else {
         parseError();
     }

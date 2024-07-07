@@ -365,6 +365,19 @@ pub async fn cmd(
         B::InitUser { id } => {
             let mut user = map_err_html(index.user_mut(id))?;
             user.init();
+
+            if user.widgets().len() == 0 {
+                user.set_widgets(vec![
+                    "recent-widget".to_owned(),
+                    "library-widget".to_owned(),
+                    "last-widget".to_owned(),
+                    "conversations-widget".to_owned(),
+                    "random-widget".to_owned(),
+                    "extras-widget".to_owned(),
+                    "search-widget".to_owned(),
+                ]);
+            }
+
             cmd_html::user(user_info(user.as_immut()))
         }
         B::MoveEntry { id, position } => {

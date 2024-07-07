@@ -153,7 +153,6 @@ main {
     border-top: 1px solid var(--content);
     display: flex;
     flex-direction: column;
-    align-items: center;
     gap: 12px;
 
     & h3 {
@@ -198,9 +197,9 @@ main {
 @media screen and (min-width: 600px) {
     #topdrawer {
         & .drawer-close {
-            bottom: 24px!important;
-            right: 24px!important;
-            font-size: 15px!important;
+            bottom: 24px !important;
+            right: 24px !important;
+            font-size: 15px !important;
 
             &:hover {
                 cursor: pointer;
@@ -303,7 +302,12 @@ main {
 }
 
 @media screen and (min-width: 900px) {
-    #sectionnav .topsection {
-        width: 600px;
+    #sectionnav {
+        align-items: center;
+
+
+        & .topsection {
+            width: 600px;
+        }
     }
 }

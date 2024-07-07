@@ -28,7 +28,7 @@ pub struct Index {
 
 impl Index {
     /// Force a save of every resource in the index.
-    /// 
+    ///
     /// This is useful for regenerating search indices when the indexing
     /// algorithm changes.
     pub fn save_all(&mut self) {
@@ -52,7 +52,7 @@ impl Index {
             drop(self.user_mut(id));
         }
     }
-    
+
     /// Read data from the filesystem and construct and interface to the journal data.
     pub fn init() -> Self {
         let index_file =
@@ -138,6 +138,11 @@ impl Index {
         })
         .expect("error serializing index file");
         fs::write("content/index.json", index_file).expect("error writing index file");
+
+        let users_file =
+            serde_json::to_string_pretty(&self.users.keys().cloned().collect::<Vec<_>>())
+                .expect("error serializing users file");
+        fs::write("users/users.json", users_file).expect("error writing users file");
     }
 
     /// Get the user with the specified id.
@@ -186,6 +191,8 @@ impl Index {
         };
 
         self.users.insert(id.clone(), user);
+
+        self.save();
 
         Ok(self.user_mut(id).unwrap())
     }

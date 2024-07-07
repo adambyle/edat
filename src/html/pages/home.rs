@@ -49,10 +49,11 @@ pub fn home<'index>(headers: &HeaderMap, user: &User) -> maud::Markup {
 
 fn recent_widget(user: &User) -> Markup {
     // Get whether the user wants to sections to show more details, by default.
-    let expand = user
-        .preferences()
-        .get("expand_recents")
-        .is_some_and(|p| p == "true");
+    let expand_preference = user.preferences().get("expand_recents");
+    let expand = match expand_preference {
+        Some(preference) if preference == "false" => false,
+        _ => true,
+    };
     let detail_class = if expand {
         "show-detailed"
     } else {
@@ -302,9 +303,13 @@ fn last_widget(user: &User) -> Markup {
 }
 
 fn conversations_widget(user: &User) -> Markup {
+    let index = user.index();
+    let sections: Vec<_> = index.sections().collect();
+    let threads: Vec<_> = sections.iter().flat_map(|s| s.threads()).collect();
+    
     html! {
         .widget #conversations-widget {
-
+            
         }
     }
 }
