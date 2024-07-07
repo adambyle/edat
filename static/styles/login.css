@@ -31,7 +31,7 @@ label {
     margin-right: 12px;
     width: 128px;
     display: inline-block;
-    text-align: right;
+    text-align: left;
     color: var(--content);
 }
 

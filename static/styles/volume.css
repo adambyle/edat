@@ -261,6 +261,51 @@ h2:not(:has(+ .subtitle)) {
             margin-top: 48px;
         }
     }
+
+    #unread-drawer > div {
+        max-height: 60vh;
+        padding: 24px 48px 0 48px;
+        gap: 24px;
+    
+        & > p {
+            font-size: 20px;
+        }
+    
+        & .unread-entries {
+            padding: 24px 48px;
+    
+            & .suggestion {
+                padding: 12px 24px;
+    
+                & h4 {
+                    font-size: 20px;
+                }
+    
+                & .position {
+                    font-size: 15px;
+                }
+    
+                & .description {
+                    font-size: 15px;
+                    margin-top: 12px;
+                }
+    
+                & .skip {
+                    top: 12px;
+                    right: 24px;
+                    font-size: 15px;
+
+                    &:hover {
+                        cursor: pointer;
+                    }
+                }
+            }
+    
+            & .suggestion + .suggestion {
+                margin-top: 24px;
+            }
+        }
+    }
 }
 
 @media screen and (min-width: 900px) {
@@ -272,6 +317,14 @@ h2:not(:has(+ .subtitle)) {
         & #intro-text {
             margin-left: calc(50% - 450px);
             margin-right: calc(50% - 450px);
+        }
+    }
+
+    #unread-drawer > div {
+        align-items: center;
+
+        & .suggestion {
+            width: 600px;
         }
     }
 }

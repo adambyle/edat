@@ -304,6 +304,6 @@ main {
 
 @media screen and (min-width: 900px) {
     #sectionnav .topsection {
-            width: 600px;
+        width: 600px;
     }
 }

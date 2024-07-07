@@ -241,6 +241,17 @@ impl Index {
     pub fn total_word_count(&self) -> usize {
         self.sections.iter().map(|s| s.word_count()).sum()
     }
+
+    /// Returns a mapping of all words and their counts.
+    pub fn all_words(&self) -> HashMap<String, usize> {
+        self.sections
+            .iter()
+            .flat_map(|s| s.words.iter())
+            .fold(HashMap::new(), |mut map, (word, spans)| {
+                *map.entry(word.to_owned()).or_insert(0) += spans.len();
+                map
+            })
+    }
 }
 
 impl Default for Index {

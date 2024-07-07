@@ -97,10 +97,10 @@ pub fn library_search(index: &Index, words: &[&str]) -> Markup {
             continue;
         }
 
-        let details = if description_hits.0 > summary_hits.0 {
-            search_tools::bolden(entry.description(), description_hits.2)
-        } else {
+        let details = if summary_hits.0 > description_hits.0 {
             search_tools::bolden(entry.summary(), summary_hits.2)
+        } else {
+            search_tools::bolden(entry.description(), description_hits.2)
         };
 
         let title = search_tools::bolden(entry.title(), title_hits.2);

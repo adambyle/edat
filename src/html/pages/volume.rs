@@ -96,9 +96,12 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
     };
 
     // Gather unfinished entry suggestions.
-    let entries: Vec<_> = volume
+    let unfinished_entries: Vec<_> = volume
         .entries()
-        .filter(|e| e.sections().any(|s| s.status() == section::Status::Complete))
+        .filter(|e| {
+            e.sections()
+                .any(|s| s.status() == section::Status::Complete)
+        })
         .filter_map(|e| {
             Some(match user.entry_progress(&e) {
                 Some(EntryProgress::Finished { .. }) => return None,
@@ -145,29 +148,34 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
                         }
                     }
                 }
-                None => html! {
-                    .suggestion {
-                        a.entry-link href={ "/entry/" (e.id()) } {
-                            h4 { (PreEscaped(e.title())) }
-                            p.position { "Start this entry" }
+                None => {
+                    let first_section_id = e
+                        .sections()
+                        .find(|s| s.status() == section::Status::Complete)
+                        .unwrap()
+                        .id();
+                    html! {
+                        .suggestion {
+                            a.entry-link href={ "/entry/" (e.id()) } {
+                                h4 { (PreEscaped(e.title())) }
+                                p.position { "Start this entry" }
+                            }
+                            button.skip edat_section=(first_section_id) { "Mark as read"}
                         }
-                        button.skip edat_section=(
-                            e.sections().next().unwrap().id()
-                        ) { "Mark as read"}
                     }
-                },
+                }
             })
         })
         .collect();
 
-    let drawers = if !entries.is_empty() {
+    let drawers = if !unfinished_entries.is_empty() {
         vec![html! {
             #unread-drawer {
                 div {
                     p.drawer-close { "✕" }
                     p { "Select an entry name to jump in."}
                     .unread-entries {
-                        @for entry in entries {
+                        @for entry in unfinished_entries {
                             (entry)
                         }
                     }
