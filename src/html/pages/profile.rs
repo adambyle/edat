@@ -54,7 +54,7 @@ pub fn profile(headers: &HeaderMap, user: &User) -> Markup {
         button #home { "Go back" }
     };
 
-    wrappers::universal(profile, headers, "profile", "Profile")
+    wrappers::universal(profile, headers, "profile", "Profile", false)
 }
 
 fn history_entry((section, progress): (Section, SectionProgress)) -> Markup {

@@ -8,7 +8,7 @@ pub mod profile;
 pub mod search;
 pub mod volume;
 
-pub fn login(headers: &HeaderMap) -> Markup {
+pub fn login(headers: &HeaderMap, title: Option<String>, show_panel: bool) -> Markup {
     let login = html! {
         h1 { "Every Day’s a Thursday" }
         p { b { "Please enter your credentials below." } }
@@ -28,7 +28,7 @@ pub fn login(headers: &HeaderMap) -> Markup {
         }
         p #error-msg style="display: none;" { "Invalid credentials." }
     };
-    wrappers::universal(login, headers, "login", "Login")
+    wrappers::universal(login, headers, "login", &title.unwrap_or_else(String::new), show_panel)
 }
 
 pub fn setup(headers: &HeaderMap, index: &Index) -> Markup {
@@ -75,7 +75,7 @@ pub fn setup(headers: &HeaderMap, index: &Index) -> Markup {
             button #done { "Finished" }
         }
     };
-    wrappers::universal(setup, headers, "setup", "Setup account")
+    wrappers::universal(setup, headers, "setup", "Setup account", false)
 }
 
 pub fn terminal(headers: &HeaderMap, allowed: bool) -> maud::Markup {
@@ -98,5 +98,5 @@ pub fn terminal(headers: &HeaderMap, allowed: bool) -> maud::Markup {
             p #forbidden { "You do not have access to the terminal" }
         }
     };
-    wrappers::universal(body, headers, "terminal", "Terminal")
+    wrappers::universal(body, headers, "terminal", "Terminal", false)
 }

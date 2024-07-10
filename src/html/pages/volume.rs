@@ -188,7 +188,7 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
 
     let body = wrappers::standard(body, drawers, None);
 
-    wrappers::universal(body, headers, "volume", volume.title())
+    wrappers::universal(body, headers, "volume", volume.title(), false)
 }
 
 pub fn error(headers: &HeaderMap, id: &str) -> Markup {
@@ -197,7 +197,7 @@ pub fn error(headers: &HeaderMap, id: &str) -> Markup {
         p { "A volume with the id " mono { (id) } " does not appear to exist." }
     };
 
-    wrappers::universal(body, headers, "missing_id", "Content not found")
+    wrappers::universal(body, headers, "missing_id", "Content not found", false)
 }
 
 pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
@@ -317,5 +317,5 @@ pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
 
     let body = wrappers::standard(body, drawers, None);
 
-    wrappers::universal(body, headers, "library", "The library")
+    wrappers::universal(body, headers, "library", "The library", false)
 }

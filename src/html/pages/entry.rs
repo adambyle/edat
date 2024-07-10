@@ -208,7 +208,7 @@ pub fn entry(
 
     let body = wrappers::standard(body, drawers, Some(topdrawer));
 
-    wrappers::universal(body, headers, "entry", entry.title())
+    wrappers::universal(body, headers, "entry", entry.title(), true)
 }
 
 pub fn error(headers: &HeaderMap, id: &str) -> Markup {
@@ -217,7 +217,7 @@ pub fn error(headers: &HeaderMap, id: &str) -> Markup {
         p { "An entry with the id " mono { (id) } " does not appear to exist." }
     };
 
-    wrappers::universal(body, headers, "missing_id", "Content not found")
+    wrappers::universal(body, headers, "missing_id", "Content not found", false)
 }
 
 pub fn section_error(headers: &HeaderMap, id: u32) -> Markup {
@@ -226,5 +226,5 @@ pub fn section_error(headers: &HeaderMap, id: u32) -> Markup {
         p { "A section with the id " mono { (id) } " does not appear to exist." }
     };
 
-    wrappers::universal(body, headers, "missing_id", "Content not found")
+    wrappers::universal(body, headers, "missing_id", "Content not found", false)
 }

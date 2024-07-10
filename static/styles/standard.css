@@ -54,7 +54,7 @@ h1 {
 
     & .page-title-ref {
         font-size: 21px;
-        font-weight: normal;
+        font-weight: 500;
         font-style: normal;
     }
 }

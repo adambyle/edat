@@ -8,7 +8,7 @@ pub async fn comment(
 ) -> StatusCode {
     let mut index = state.index.lock().unwrap();
 
-    let Ok(user) = auth::get_user(&headers, &index) else {
+    let Ok(user) = auth::get_user(&headers, &index, None, false) else {
         return StatusCode::INTERNAL_SERVER_ERROR;
     };
     let author = user.id().to_owned();

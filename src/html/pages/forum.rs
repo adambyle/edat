@@ -7,5 +7,5 @@ pub fn forum(headers: &HeaderMap, _user: &User) -> Markup {
         a href="/" { "Return home" }
     };
 
-    wrappers::universal(body, headers, "forum", "Forum")
+    wrappers::universal(body, headers, "forum", "Forum", false)
 }

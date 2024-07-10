@@ -17,6 +17,6 @@ pub async fn thread(
     State(state): State<AppState>,
 ) -> Markup {
     let index = state.index.lock().unwrap();
-    let user = auth::get_user(&headers, &index).unwrap();
+    let user = auth::get_user(&headers, &index, None, false).unwrap();
     html::components::thread(&user, section, line)
 }

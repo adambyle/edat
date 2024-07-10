@@ -25,6 +25,10 @@ pub async fn image(ReqPath(file_name): ReqPath<String>) -> impl IntoResponse {
     static_file(format!("content/images/{}", file_name), "image/jpeg")
 }
 
+pub async fn preview() -> impl IntoResponse {
+    static_file("content/preview.png".to_owned(), "image/png")
+}
+
 pub async fn archive() -> impl IntoResponse {
     let now = Utc::now();
     let archive_path = format!("edat-{}-{}-{}.zip", now.year(), now.month(), now.day());

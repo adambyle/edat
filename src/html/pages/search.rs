@@ -249,5 +249,5 @@ pub fn search(headers: &HeaderMap, index: &Index, words: &[&str]) -> Markup {
         }
     };
 
-    wrappers::universal(body, headers, "search", "Search")
+    wrappers::universal(body, headers, "search", "Search", false)
 }

@@ -3,7 +3,7 @@
 
 h2 {
     text-align: center;
-    font: 28px var(--serif);
+    font: 500 28px var(--serif);
     color: var(--content);
     margin: 48px 72px 6px 72px;
 }

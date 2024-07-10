@@ -44,7 +44,7 @@ pub fn home<'index>(headers: &HeaderMap, user: &User) -> maud::Markup {
         }
     };
     let body = wrappers::standard(body, Vec::new(), None);
-    wrappers::universal(body, &headers, "home", "Home")
+    wrappers::universal(body, &headers, "home", "Home", false)
 }
 
 fn recent_widget(user: &User) -> Markup {

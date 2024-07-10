@@ -55,5 +55,5 @@ pub fn history(headers: &HeaderMap, user: &User) -> Markup {
 
     let body = wrappers::standard(body, Vec::new(), None);
 
-    wrappers::universal(body, headers, "history", "Upload history")
+    wrappers::universal(body, headers, "history", "Upload history", false)
 }

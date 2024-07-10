@@ -39,18 +39,25 @@ pub(super) fn universal(
     headers: &HeaderMap,
     resource: &'static str,
     title: &str,
+    show_panel: bool,
 ) -> Markup {
     let dark_theme = match get_cookie(headers, "edat_theme") {
         Some("dark") => Some("dark-theme"),
         _ => None,
     };
 
+    let title = crate::data::strip_formatting(title);
+
     html! {
         (DOCTYPE)
         html lang="en-us" {
             head {
-                title { "Every Day’s a Thursday | " (crate::data::strip_formatting(title)) }
+                title { (title) " | Every Day’s a Thursday" }
                 meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
+                meta property="og:title" content=(title);
+                @if show_panel {
+                    meta property="og:image" content="/preview";
+                }
                 link type="text/css" rel="stylesheet" href={"/style/" (resource) ".css"};
                 @if dark_theme.is_some() {
                     link rel="icon" type="image/x-icon" href="/asset/favicon-dark.ico";
