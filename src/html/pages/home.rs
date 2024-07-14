@@ -1,5 +1,6 @@
 use std::fs;
 
+use chrono::Utc;
 use rand::prelude::SliceRandom;
 
 use super::*;
@@ -81,12 +82,8 @@ fn recent_widget(user: &User) -> Markup {
     let section_html = |section: &Section| {
         // Get the previous section.
         let index_in_parent = section.index_in_parent();
-        let previous = (index_in_parent > 0).then(|| {
-            section
-                .parent_entry()
-                .sections()
-                .nth(index_in_parent - 1)
-                .unwrap()
+        let previous = section.parent_entry().sections().rev().find(|s| {
+            s.status() == section::Status::Complete && s.index_in_parent() < index_in_parent
         });
         let omit_previous = previous.as_ref().is_some_and(|previous| {
             previous.status() != section::Status::Complete
@@ -304,12 +301,104 @@ fn last_widget(user: &User) -> Markup {
 
 fn conversations_widget(user: &User) -> Markup {
     let index = user.index();
+
+    let now = Utc::now().timestamp();
+    let one_month = 30 * 24 * 60 * 60;
+
+    let mut threads = Vec::new();
+
     let sections: Vec<_> = index.sections().collect();
-    let threads: Vec<_> = sections.iter().flat_map(|s| s.threads()).collect();
-    
+
+    for section in &sections {
+        let section_threads = section.threads();
+
+        for thread in section_threads {
+            if thread
+                .comments
+                .iter()
+                .any(|c| now - c.timestamp <= one_month && c.show)
+            {
+                threads.push((section, thread));
+            }
+        }
+    }
+
+    threads.sort_by_key(|(_, t)| t.comments.iter().map(|c| c.timestamp).max().unwrap());
+    threads.reverse();
+
+    let threads_html: Vec<_> = threads
+        .iter()
+        .map(|(s, t)| {
+            let content = s.content();
+            let comment = t.comments.iter().rev().find(|c| c.show).unwrap();
+            let mut comment_text = comment.content.last().unwrap().to_owned();
+            if comment_text.len() > 150 {
+                comment_text = format!("{}…", &comment_text[..150]);
+            }
+
+            let mut lines = Vec::new();
+            for (i, line) in content.lines().enumerate() {
+                if i >= t.line.saturating_sub(4) && i <= t.line + 4 {
+                    lines.push((i, line));
+                }
+            }
+
+            html! {
+                a.thread href={ "/section/" (s.id()) "?line=" (t.line) } {
+                    p.title {
+                        (PreEscaped(s.parent_entry().title()))
+                        @if s.parent_entry().section_count() > 1 {
+                            span.index {
+                                "Section " (1 + s.index_in_parent())
+                            }
+                        }
+                    }
+                    .body {
+                        @for (i, line) in lines {
+                            @if i == t.line {
+                                .line.highlight { (PreEscaped(line)) }
+                            } @else {
+                                .line { (PreEscaped(line)) }
+                            }
+                        }
+                    }
+                    p.comments {
+                        @if t.comments.len() > 1 {
+                            .more {
+                                (t.comments.len() - 1) " others"
+                            }
+                        }
+                        .comment {
+                            .text {
+                                (PreEscaped(comment_text))
+                            }
+                            .info {
+                                .author { (comment.author.first_name()) }
+                                utc.date { (comment.timestamp) }
+                                @if comment.content.len() > 1 {
+                                    .edited { "Edited" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        })
+        .collect();
+
     html! {
         .widget #conversations-widget {
-            
+            h2 { "Conversations" }
+
+            @if threads_html.is_empty() {
+                .no-threads { "No comments yet" }
+            } @else {
+                #threads-carousel {
+                    @for thread in threads_html {
+                        (thread)
+                    }
+                }
+            }
         }
     }
 }

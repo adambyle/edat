@@ -389,6 +389,102 @@
     }
 }
 
+#conversations-widget {
+    & .no-threads {
+        margin: 0 24px;
+        font: 14px var(--sans);
+        color: var(--content);
+        border: 1px solid var(--gray);
+        padding: 6px 12px;
+    }
+
+    & #threads-carousel {
+        padding: 12px 24px;
+        display: flex;
+        border-width: 1px 0px;
+        border-color: var(--gray);
+        border-style: solid;
+        background: var(--shadow);
+        width: 100%;
+        overflow-x: scroll;
+        scrollbar-width: none;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x mandatory;
+        gap: 12px;
+
+        & .thread {
+            flex: 0 0 calc(100% - 24px);
+            scroll-snap-align: center;
+            position: relative;
+            max-width: 320px;
+            border: 1px solid var(--content);
+            height: 320px;
+            display: flex;
+            flex-direction: column;
+
+            & .title {
+                padding: 6px 12px;
+                font: 14px var(--serif);
+                color: var(--content);
+                border-bottom: 1px solid var(--content);
+
+                & .index {
+                    font: 11px var(--sans);
+                    color: var(--gray);
+                    margin-left: 12px;
+                }
+            }
+
+            & .body {
+                height: 50%;
+                padding: 6px 12px;
+                border-bottom: 1px solid var(--content);
+                overflow-y: auto;
+                color: var(--gray);
+                font: 11px var(--serif);
+                background: var(--bg);
+
+                & .line + .line {
+                    margin-top: 6px;
+                }
+
+                & .highlight {
+                    color: var(--content);
+                }
+            }
+
+            & .more {
+                padding: 6px 12px;
+                font: 14px var(--sans);
+                text-align: center;
+                color: var(--gray);
+                border-bottom: 1px solid var(--gray);
+            }
+
+            & .comment {
+                position: relative;
+                padding: 6px 12px;
+                flex-grow: 1;
+
+                & .text {
+                    font: 14px var(--sans);
+                    color: var(--content);
+                }
+
+                & .info {
+                    position: absolute;
+                    bottom: 6px;
+                    left: 12px;
+                    display: flex;
+                    font: 11px var(--sans);
+                    color: var(--gray);
+                    gap: 12px;
+                }
+            }
+        }
+    }
+}
+
 @media screen and (min-width: 1300px) {
     #widgets-wrapper {
         display: flex;
@@ -648,6 +744,65 @@
             
             & p + p {
                 margin-top: 24px;
+            }
+        }
+    }
+
+    #conversations-widget {
+        & .no-threads {
+            margin: 0 48px;
+            font-size: 20px;
+            padding: 12px 24px;
+        }
+    
+        & #threads-carousel {
+            padding: 24px 48px;
+            border-width: 1px;
+            gap: 24px;
+    
+            & .thread {
+                flex: 0 0 calc(100% - 48px);
+                max-width: 500px;
+                height: 500px;
+    
+                & .title {
+                    padding: 12px 24px;
+                    font-size: 20px;
+    
+                    & .index {
+                        font-size: 15px;
+                        margin-left: 24px;
+                    }
+                }
+    
+                & .body {
+                    padding: 12px 24px;
+                    font-size: 15px;
+    
+                    & .line + .line {
+                        margin-top: 12px;
+                    }
+                }
+    
+                & .more {
+                    padding: 12px 24px;
+                    font-size: 20px;
+                }
+    
+                & .comment {
+                    padding: 12px 24px;
+    
+                    & .text {
+                        font-size: 20px;
+                    }
+    
+                    & .info {
+                        bottom: 12px;
+                        left: 24px;
+                        font-size: 15px;
+                        gap: 24px;
+                    }
+                }
             }
         }
     }

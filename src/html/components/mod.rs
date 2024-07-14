@@ -191,7 +191,7 @@ pub fn thread(user: &User, section: u32, line: usize) -> Markup {
                     (author)
                     " has removed a message"
                     @if &comment.author == user {
-                        .unremove edat_uuid=(comment.uuid) { "Unremove" }
+                        .unremove edat_uuid=(comment.uuid) { "Restore" }
                     }
                 }
             };

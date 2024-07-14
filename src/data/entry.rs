@@ -143,7 +143,7 @@ impl<'index> Entry<'index> {
     }
 
     /// Get wrappers around the sections in this entry.
-    pub fn sections(&self) -> impl Iterator<Item = Section<'index>> {
+    pub fn sections(&self) -> impl DoubleEndedIterator<Item = Section<'index>> {
         self.section_ids()
             .to_owned()
             .into_iter()

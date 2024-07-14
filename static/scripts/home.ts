@@ -130,3 +130,15 @@ if (searchInput) {
         }
     }
 }
+
+// Comment thread handling.
+const threads = document.getElementsByClassName("thread") as HTMLCollectionOf<HTMLElement>;
+for (const thread of threads) {
+    const elBody = thread.querySelector(".body") as HTMLDivElement;
+    const elHighlight = elBody.querySelector(".highlight") as HTMLDivElement;
+
+    const scrollAmount = elHighlight.getBoundingClientRect().top
+        - elBody.getBoundingClientRect().top
+        - 24;
+    elBody.scrollTo(0, scrollAmount);
+}

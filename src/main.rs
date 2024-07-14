@@ -22,7 +22,6 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
-    println!("Hello world!");
     image::entry_image(
         "Breaching the Gates of Heaven",
         "After forming unbreakable memories with Bronwyn and seeing favorable odds, I am forced to fix a breaking friendship when feelings aren’t returned.",

@@ -283,7 +283,7 @@ h2 {
             font: 14px var(--sans);
             padding: 6px 12px;
             resize: none;
-            height: 200px;
+            height: 80px;
             overflow-y: auto;
             overflow-x: hidden;
             resize: none;
@@ -489,6 +489,7 @@ h2 {
             & textarea {
                 font-size: 20px;
                 padding: 12px 24px;
+                height: 200px;
             }
         }
     }

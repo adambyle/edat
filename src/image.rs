@@ -1,6 +1,6 @@
-use std::{fs, time::Instant};
+use std::fs;
 
-use image_builder::{colors, FilterType, Image, Picture, Rect, Text};
+use image_builder::{FilterType, Image, Picture, Text};
 
 const BACKGROUND: [u8; 4] = [0x15, 0x18, 0x1f, 0xff];
 const CONTENT: [u8; 4] = [0xf0, 0xf2, 0xf5, 0xff];

@@ -170,7 +170,7 @@ if (elHere) {
     if (elHere.classList.contains("here-section")) {
         scrollOffset = 240;
     } else {
-        scrollOffset = window.innerHeight;
+        scrollOffset = window.innerHeight - elHere.clientHeight - 12;
     }
 
     setTimeout(() => {
