@@ -32,6 +32,7 @@ pub(super) fn get_user<'index>(
 ) -> Result<User<'index>, maud::Markup> {
     // Get the user.
     let user = get_cookie(headers, "edat_user").and_then(|u| index.user(u.to_owned()).ok());
+    
     let Some(user) = user else {
         return Err(html::pages::login(headers, title, show_panel));
     };

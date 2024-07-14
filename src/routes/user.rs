@@ -33,8 +33,13 @@ pub async fn register(
     }
 
     // Update the user's history and widget preferences.
-    let user = get_cookie(&headers, "edat_user").unwrap();
-    let mut user = index.user_mut(user.to_owned()).unwrap();
+    let user_id = {
+        let Ok(user) = auth::get_user(&headers, &index, None, false) else {
+            return;
+        };
+        user.id().to_owned()
+    };
+    let mut user = index.user_mut(user_id).unwrap();
     for section in sections {
         user.finished_section(section);
     }
@@ -48,8 +53,14 @@ pub async fn set_widgets(
     Json(widgets): Json<Vec<String>>,
 ) -> StatusCode {
     let mut index = state.index.lock().unwrap();
-    let user = get_cookie(&headers, "edat_user").unwrap();
-    let mut user = index.user_mut(user.to_owned()).unwrap();
+
+    let user_id = {
+        let Ok(user) = auth::get_user(&headers, &index, None, false) else {
+            return StatusCode::UNAUTHORIZED;
+        };
+        user.id().to_owned()
+    };
+    let mut user = index.user_mut(user_id).unwrap();
 
     user.set_widgets(widgets);
 
@@ -62,8 +73,15 @@ pub async fn set_preferences(
     Json(body): Json<HashMap<String, Option<String>>>,
 ) {
     let mut index = state.index.lock().unwrap();
-    let user = get_cookie(&headers, "edat_user").unwrap();
-    let mut user = index.user_mut(user.to_owned()).unwrap();
+
+    let user_id = {
+        let Ok(user) = auth::get_user(&headers, &index, None, false) else {
+            return;
+        };
+        user.id().to_owned()
+    };
+    let mut user = index.user_mut(user_id).unwrap();
+
     for (k, v) in body {
         match v {
             Some(v) => {
@@ -89,8 +107,14 @@ pub async fn read(
     Query(options): Query<ReadQuery>,
 ) -> StatusCode {
     let mut index = state.index.lock().unwrap();
-    let user = get_cookie(&headers, "edat_user").unwrap();
-    let mut user = index.user_mut(user.to_owned()).unwrap();
+
+    let user_id = {
+        let Ok(user) = auth::get_user(&headers, &index, None, false) else {
+            return StatusCode::UNAUTHORIZED;
+        };
+        user.id().to_owned()
+    };
+    let mut user = index.user_mut(user_id).unwrap();
 
     if options.entry.unwrap_or(false) {
         println!("Entry finished!");

@@ -15,8 +15,8 @@ pub async fn thread(
     headers: HeaderMap,
     ReqPath((section, line)): ReqPath<(u32, usize)>,
     State(state): State<AppState>,
-) -> Markup {
+) -> Result<Markup, Markup> {
     let index = state.index.lock().unwrap();
-    let user = auth::get_user(&headers, &index, None, false).unwrap();
-    html::components::thread(&user, section, line)
+    let user = auth::get_user(&headers, &index, None, false)?;
+    Ok(html::components::thread(&user, section, line))
 }

@@ -391,7 +391,7 @@ fn conversations_widget(user: &User) -> Markup {
             h2 { "Conversations" }
 
             @if threads_html.is_empty() {
-                .no-threads { "No comments yet" }
+                .no-threads { "No recent comments" }
             } @else {
                 #threads-carousel {
                     @for thread in threads_html {
