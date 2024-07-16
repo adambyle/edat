@@ -153,10 +153,6 @@ h2:not(:has(+ .subtitle)) {
             & h4 {
                 font: 14px var(--serif);
                 color: var(--content);
-
-                &.creative-title {
-                    font-size: 20px;
-                }
             }
 
             & .position {
@@ -242,11 +238,15 @@ h2:not(:has(+ .subtitle)) {
         & .entry {
             height: 210px;
             padding: 12px 24px;
-            max-width: 450px;
+            width: min(450px, 100% - 48px);
     
             & h4 {
                 font-size: 25px;
                 margin-bottom: 12px;
+
+                &.creative-title {
+                    font-size: 30px;
+                }
             }
     
             & .summary {

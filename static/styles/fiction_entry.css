@@ -100,12 +100,12 @@
         & .edat {
             font-size: 20px;
             margin-bottom: 24px;
-            padding: 12px 48px;
+            padding: 12px 96px;
         }
     
         h2 {
             font: 500 55px var(--serif);
-            margin: 0 50% 0 48px;
+            margin: 0 50% 0 96px;
             font-style: italic;
         }
     }
@@ -113,13 +113,14 @@
     .section {
         & h3 {
             font-size: 25px;
-            margin-left: 48px;
+            margin-left: 96px;
             margin-bottom: 36px;
         }
     }
     
     .divider {
-        margin-top: 96px;
+        margin: 96px 96px 0 96px;
+        max-width: 900px;
     
         & .line {
             width: 288px;
@@ -130,11 +131,9 @@
         }
     }
     
-    
-    
     .body {
         &>.lines>.textline {
-            margin: 0 48px;
+            margin: 0 96px;
             font-size: 20px;
             line-height: 35px;
             max-width: 900px;
@@ -146,7 +145,7 @@
     
         & .note {
             padding: 12px 0 12px 24px;
-            margin: 24px 48px 0 48px;
+            margin: 24px 96px 0 96px;
             font-size: 20px;
             line-height: 35px;
     
