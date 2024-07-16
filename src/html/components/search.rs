@@ -26,10 +26,12 @@ pub fn entry(index: &Index, id: &str, words: &[&str]) -> Markup {
         .entry-body {
             .label { "Title" }
             .title { (PreEscaped(title)) }
-            .label { "Summary" }
-            .summary { (PreEscaped(summary)) }
-            .label { "Description" }
-            .description { (PreEscaped(description)) }
+            @if entry.parent_volume().kind() == crate::data::volume::Kind::Journal {
+                .label { "Summary" }
+                .summary { (PreEscaped(summary)) }
+                .label { "Description" }
+                .description { (PreEscaped(description)) }
+            }
         }
     }
 }

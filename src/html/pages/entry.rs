@@ -14,6 +14,10 @@ pub fn entry(
     user: &User,
     destination: EntryDestination,
 ) -> Markup {
+    if entry.parent_volume().kind() == crate::data::volume::Kind::Creative {
+        return fiction_entry(headers, entry, user);
+    }
+
     let mut jump_found = false;
     let mut section_html = |section: &Section, complete: bool| {
         let content = section.content();
@@ -209,6 +213,67 @@ pub fn entry(
     let body = wrappers::standard(body, drawers, Some(topdrawer));
 
     wrappers::universal(body, headers, "entry", entry.title(), true)
+}
+
+pub fn fiction_entry(
+    headers: &HeaderMap,
+    entry: &Entry,
+    user: &User
+) -> Markup {
+    let section_html = |section: &Section| {
+        let content = section.content();
+        let content = content.lines().enumerate().map(|(line_index, line_text)| {
+            if line_text.starts_with("/note") {
+                let note_desc = line_text.split("/note ").nth(1);
+                return PreEscaped(if let Some(note_desc) = note_desc {
+                    format!(r#"<div class="note"><p class="note-desc">{note_desc}</p>"#)
+                } else {
+                    format!(r#"<div class="note">"#)
+                });
+            }
+            if line_text.starts_with("/end") {
+                return PreEscaped("</div>".to_string());
+            }
+
+            html! {
+                p.textline edat_line=(line_index) {
+                    (PreEscaped(line_text))
+                }
+            }
+        });
+
+        html! {
+            .section edat_section=(section.id()) {
+                @if let Some(heading) = section.heading() {
+                    h3 { (PreEscaped(heading)) }
+                }
+                .body {
+                    .lines {
+                        @for line in content {
+                            (line)
+                        }
+                    }
+                }
+            }
+        }
+    };
+    
+    let body = html! {
+        #titlecard {
+            a.edat href="/" { "Every Day’s a Thursday" }
+            h2.page-title { (PreEscaped(entry.title())) }
+        }
+        @for section in entry.sections() {
+            (section_html(&section))
+            @if 1 + section.index_in_parent() != section.parent_entry().section_count() {
+                .divider {
+                    .line {}
+                }
+            }
+        }
+    };
+
+    wrappers::universal(body, headers, "fiction_entry", entry.title(), true)
 }
 
 pub fn error(headers: &HeaderMap, id: &str) -> Markup {

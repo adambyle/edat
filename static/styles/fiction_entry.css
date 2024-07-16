@@ -1,0 +1,168 @@
+@import url("/style/universal.css");
+
+#titlecard {
+    margin: 96px 0 192px 0;
+
+    & .edat {
+        font: 14px var(--serif);
+        font-style: italic;
+        margin-bottom: 12px;
+        color: var(--gray);
+        padding: 6px 24px;
+        border-bottom: 1px solid var(--gray);
+        display: block;
+    }
+
+    h2 {
+        font: 500 39px var(--serif);
+        color: var(--content);
+        margin: 0 48px 0 24px;
+    }
+}
+
+.section {
+    & h3 {
+        font: bold 18px var(--serif);
+        color: var(--content);
+        margin-left: 24px;
+        margin-bottom: 18px;
+    }
+}
+
+.divider {
+    margin-top: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    & .line {
+        width: 144px;
+        border-bottom: 1px solid var(--content);
+    }
+
+    &+.section {
+        margin-top: 48px;
+    }
+}
+
+
+
+.body {
+    position: relative;
+
+    &>.lines>.textline {
+        margin: 0 24px;
+        font: 14px var(--serif);
+        line-height: 25px;
+        color: var(--content);
+        position: relative;
+    }
+
+    .textline:not(:first-child) {
+        text-indent: 24px;
+    }
+
+    & .note {
+        padding: 6px 0 6px 12px;
+        margin: 12px 24px 0 24px;
+        border-left: 1px solid var(--gray);
+        font: 14px var(--serif);
+        line-height: 25px;
+        color: var(--content);
+        font-style: italic;
+
+        & .textline:not(.note-desc)+.textline {
+            margin-top: 12px;
+        }
+
+        &+.textline {
+            margin-top: 12px;
+        }
+
+        & .note-desc {
+            margin-bottom: 0;
+            font: 11px var(--sans);
+            color: var(--gray);
+            font-style: normal;
+            margin-bottom: 6px;
+        }
+
+        & i {
+            font-style: normal;
+        }
+    }
+}
+
+@media screen and (min-width: 600px) {
+    #titlecard {
+        margin: 192px 0 384px 0;
+    
+        & .edat {
+            font-size: 20px;
+            margin-bottom: 24px;
+            padding: 12px 48px;
+        }
+    
+        h2 {
+            font: 500 55px var(--serif);
+            margin: 0 50% 0 48px;
+            font-style: italic;
+        }
+    }
+    
+    .section {
+        & h3 {
+            font-size: 25px;
+            margin-left: 48px;
+            margin-bottom: 36px;
+        }
+    }
+    
+    .divider {
+        margin-top: 96px;
+    
+        & .line {
+            width: 288px;
+        }
+    
+        &+.section {
+            margin-top: 96px;
+        }
+    }
+    
+    
+    
+    .body {
+        &>.lines>.textline {
+            margin: 0 48px;
+            font-size: 20px;
+            line-height: 35px;
+            max-width: 900px;
+        }
+    
+        .textline:not(:first-child) {
+            text-indent: 48px;
+        }
+    
+        & .note {
+            padding: 12px 0 12px 24px;
+            margin: 24px 48px 0 48px;
+            font-size: 20px;
+            line-height: 35px;
+    
+            & .textline:not(.note-desc)+.textline {
+                margin-top: 24px;
+            }
+    
+            &+.textline {
+                margin-top: 24px;
+            }
+    
+            & .note-desc {
+                font-size: 15px;
+                font: 11px var(--sans);
+                margin-bottom: 12px;
+            }
+        }
+    }
+}

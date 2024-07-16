@@ -1,4 +1,5 @@
 use chrono::NaiveDate;
+use crate::data::volume::Kind as VolumeKind;
 
 use super::*;
 
@@ -18,6 +19,10 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
                 break 'status html! {
                     span.incomplete { "Coming soon" }
                 };
+            }
+
+            if volume.kind() != VolumeKind::Journal {
+                break 'status html!{};
             }
 
             let mut last_edited: Option<NaiveDate> = None;
@@ -49,9 +54,11 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
             }
         };
 
+        let is_creative = volume.kind() == VolumeKind::Creative;
+
         html! {
             a.entry href={ "/entry/" (entry.id()) } {
-                h4 { (PreEscaped(entry.title())) }
+                h4 .creative-title[is_creative] { (PreEscaped(entry.title())) }
                 p.summary { (PreEscaped(entry.summary())) }
                 p.info {
                     @if entry.length() > 0 {
@@ -101,6 +108,7 @@ pub fn volume(headers: &HeaderMap, volume: &Volume, user: &User) -> Markup {
         .filter(|e| {
             e.sections()
                 .any(|s| s.status() == section::Status::Complete)
+            && e.parent_volume().kind() == VolumeKind::Journal
         })
         .filter_map(|e| {
             Some(match user.entry_progress(&e) {
@@ -221,6 +229,10 @@ pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
                 };
             }
 
+            if entry.parent_volume().kind() != VolumeKind::Journal {
+                break 'status html!{};
+            }
+
             let mut last_edited: Option<NaiveDate> = None;
             for section in entry.sections() {
                 if section.status() != section::Status::Missing {
@@ -250,10 +262,12 @@ pub fn library(headers: &HeaderMap, index: &Index) -> Markup {
             }
         };
 
+        let is_creative = entry.parent_volume().kind() == VolumeKind::Creative;
+
         html! {
             .entry-wrapper {
                 a.entry href={ "/entry/" (entry.id()) } {
-                    h4 { (PreEscaped(entry.title())) }
+                    h4 .creative-title[is_creative] { (PreEscaped(entry.title())) }
                     p.description { (PreEscaped(entry.description())) }
                     p.info {
                         @if entry.length() > 0 {

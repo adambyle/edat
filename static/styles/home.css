@@ -418,7 +418,7 @@
             position: relative;
             max-width: 320px;
             border: 1px solid var(--content);
-            height: 320px;
+            height: 310px;
             display: flex;
             flex-direction: column;
 

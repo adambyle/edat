@@ -92,6 +92,10 @@ h1 {
     & h4 {
         font: 14px var(--serif);
         color: var(--gray);
+
+        &.creative-title {
+            font-size: 21px
+        }
     }
 
     &.selected h4 {
@@ -474,6 +478,10 @@ h1 {
     
         & h4 {
             font-size: 20px;
+
+            &.creative-title {
+                font-size: 30px
+            }
         }
     
         & .details {

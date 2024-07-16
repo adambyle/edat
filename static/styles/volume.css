@@ -48,6 +48,10 @@ h2:not(:has(+ .subtitle)) {
             font: 18px var(--serif);
             color: var(--content);
             margin-bottom: 6px;
+
+            &.creative-title {
+                font-size: 25px;
+            }
         }
 
         & .summary {
@@ -149,6 +153,10 @@ h2:not(:has(+ .subtitle)) {
             & h4 {
                 font: 14px var(--serif);
                 color: var(--content);
+
+                &.creative-title {
+                    font-size: 20px;
+                }
             }
 
             & .position {

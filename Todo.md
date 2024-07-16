@@ -8,3 +8,8 @@ Bug fixes:
 
 Features:
 - Bottom drawer when opening entries, suggesting to jump back in.
+
+## New volume kind checklist
+
+- Update search results
+- Update library results

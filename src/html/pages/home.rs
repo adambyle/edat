@@ -256,10 +256,10 @@ fn library_widget(user: &User) -> Markup {
 }
 
 fn last_widget(user: &User) -> Markup {
-    let section = user
-        .history()
-        .into_iter()
-        .find(|(_, h)| !matches!(h, SectionProgress::Finished { .. }));
+    let section = user.history().into_iter().find(|(s, h)| {
+        s.parent_entry().parent_volume().kind() == VolumeKind::Journal
+            && !matches!(h, SectionProgress::Finished { .. })
+    });
 
     let section = if let Some((ref section, ref progress)) = section {
         let progress_pp = (progress.line() as f32 / section.lines() as f32 * 100.0).round();
@@ -332,8 +332,8 @@ fn conversations_widget(user: &User) -> Markup {
             let content = s.content();
             let comment = t.comments.iter().rev().find(|c| c.show).unwrap();
             let mut comment_text = comment.content.last().unwrap().to_owned();
-            if comment_text.len() > 175 {
-                comment_text = format!("{}…", &comment_text[..175]);
+            if comment_text.len() > 150 {
+                comment_text = format!("{}…", &comment_text[..150]);
             }
 
             let mut lines = Vec::new();
@@ -434,6 +434,7 @@ fn random_widget(user: &User) -> Markup {
                     && !e
                         .sections()
                         .any(|s| s.status() != section::Status::Complete)
+                    && e.parent_volume().kind() == VolumeKind::Journal
             })
             .collect();
         entries.shuffle(&mut rand::thread_rng());

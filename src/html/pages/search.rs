@@ -1,5 +1,6 @@
 use super::*;
 use crate::search::bolden;
+use crate::data::volume::Kind as VolumeKind;
 
 pub fn search(headers: &HeaderMap, index: &Index, words: &[&str]) -> Markup {
     let words = {
@@ -184,14 +185,25 @@ pub fn search(headers: &HeaderMap, index: &Index, words: &[&str]) -> Markup {
             ordering => ordering,
         });
 
+        let volume_kind = entry.parent_volume().kind();
+        let is_creative = volume_kind == VolumeKind::Creative;
+
         results.push(Result {
             score: search_results.total_score()
                 + sections.iter().map(|(_, s)| s.total_score()).sum::<f64>(),
             all_found: search_results.all_words_found(),
             widget: html! {
                 .result {
-                    p.label { "Entry in " (PreEscaped(entry.parent_volume().title())) }
-                    h4 { (PreEscaped(title)) }
+                    @match volume_kind {
+                        VolumeKind::Journal => {
+                            p.label { "Entry in " (PreEscaped(entry.parent_volume().title())) }
+                        }
+                        VolumeKind::Creative => {
+                            p.label { "Creative work" }
+                        }
+                        _ => {}
+                    }
+                    h4 .creative-title[is_creative] { (PreEscaped(title)) }
                     p.details { (PreEscaped(description)) }
                     p.hits { (hits) " hits" }
                     .mysubresults {

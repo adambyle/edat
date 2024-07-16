@@ -70,6 +70,10 @@ p.subtitle {
             font: 18px var(--serif);
             color: var(--content);
             margin-bottom: 6px;
+
+            &.creative-title {
+                font-size: 25px;
+            }
         }
 
         & .description {
@@ -186,6 +190,10 @@ p.subtitle {
             & h4 {
                 font: 14px var(--serif);
                 color: var(--content);
+
+                &.selected-title {
+                    font-size: 20px;
+                }
             }
             
             & .details {
