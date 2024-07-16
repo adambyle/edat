@@ -13,7 +13,7 @@
         display: block;
     }
 
-    h2 {
+    & h2 {
         font: 500 39px var(--serif);
         color: var(--content);
         margin: 0 48px 0 24px;
@@ -58,7 +58,7 @@
         position: relative;
     }
 
-    .textline:not(:first-child) {
+    & .textline:not(:first-child) {
         text-indent: 24px;
     }
 
@@ -94,7 +94,7 @@
 }
 
 @media screen and (min-width: 600px) {
-    #titlecard {
+    titlecard {
         margin: 192px 0 384px 0;
     
         & .edat {
@@ -103,7 +103,7 @@
             padding: 12px 96px;
         }
     
-        h2 {
+        & h2 {
             font: 500 55px var(--serif);
             margin: 0 50% 0 96px;
             font-style: italic;
@@ -139,7 +139,7 @@
             max-width: 900px;
         }
     
-        .textline:not(:first-child) {
+        & .textline:not(:first-child) {
             text-indent: 48px;
         }
     
