@@ -436,7 +436,7 @@
             }
 
             & .body {
-                height: 50%;
+                height: 45%;
                 padding: 6px 12px;
                 border-bottom: 1px solid var(--content);
                 overflow-y: auto;
@@ -455,7 +455,7 @@
 
             & .more {
                 padding: 6px 12px;
-                font: 14px var(--sans);
+                font: 11px var(--sans);
                 text-align: center;
                 color: var(--gray);
                 border-bottom: 1px solid var(--gray);
@@ -786,7 +786,7 @@
     
                 & .more {
                     padding: 12px 24px;
-                    font-size: 20px;
+                    font-size: 15px;
                 }
     
                 & .comment {

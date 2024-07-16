@@ -332,8 +332,8 @@ fn conversations_widget(user: &User) -> Markup {
             let content = s.content();
             let comment = t.comments.iter().rev().find(|c| c.show).unwrap();
             let mut comment_text = comment.content.last().unwrap().to_owned();
-            if comment_text.len() > 150 {
-                comment_text = format!("{}…", &comment_text[..150]);
+            if comment_text.len() > 175 {
+                comment_text = format!("{}…", &comment_text[..175]);
             }
 
             let mut lines = Vec::new();
