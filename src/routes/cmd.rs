@@ -8,7 +8,7 @@ use super::*;
 
 pub async fn image_upload(
     headers: HeaderMap,
-    ReqPath(file_name): ReqPath<String>,
+    ReqPath(mut file_name): ReqPath<String>,
     body: Bytes,
 ) -> impl IntoResponse {
     let image_path = format!("content/images/{file_name}");
@@ -16,6 +16,12 @@ pub async fn image_upload(
     let is_jpeg = headers
         .get("Content-Type")
         .is_some_and(|c| c == "image/jpeg");
+
+    file_name = file_name.to_lowercase();
+    if file_name.ends_with(".jpeg") {
+        file_name = file_name.replace(".jpeg", ".jpg");
+    }
+
     if !file_name.ends_with(".jpg") || image_path.exists() || !is_jpeg {
         return html::cmd::image_error(&file_name);
     }

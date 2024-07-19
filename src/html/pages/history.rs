@@ -4,7 +4,10 @@ pub fn history(headers: &HeaderMap, user: &User) -> Markup {
     let mut sections: Vec<_> = user
         .index()
         .sections()
-        .filter(|s| s.status() == section::Status::Complete)
+        .filter(|s| {
+            s.status() == section::Status::Complete
+                && s.parent_entry().parent_volume().kind() == crate::data::volume::Kind::Journal
+        })
         .collect();
     sections.sort_by_key(|s| (s.date(), s.index_in_parent()));
     sections.reverse();
@@ -43,7 +46,7 @@ pub fn history(headers: &HeaderMap, user: &User) -> Markup {
             }
         });
     }
-    
+
     let body = html! {
         h2 { "Upload history" }
         #sections {

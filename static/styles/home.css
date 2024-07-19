@@ -451,6 +451,13 @@
                 & .highlight {
                     color: var(--content);
                 }
+
+                & .note {
+                    margin: 6px 0;
+                    padding-left: 12px;
+                    font-style: italic;
+                    border-left: 1px solid var(--gray);
+                }
             }
 
             & .more {

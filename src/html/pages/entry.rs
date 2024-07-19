@@ -15,7 +15,7 @@ pub fn entry(
     destination: EntryDestination,
 ) -> Markup {
     if entry.parent_volume().kind() == crate::data::volume::Kind::Creative {
-        return fiction_entry(headers, entry, user);
+        return fiction_entry(headers, entry);
     }
 
     let mut jump_found = false;
@@ -71,16 +71,6 @@ pub fn entry(
                 .iter()
                 .map(|c| &c.author)
                 .collect();
-            // let author_text = if commenters.len() == 0 {
-            //     String::new()
-            // } else if commenters.len() == 1 {
-            //     format!("See comments from {}", commenters.iter().next().unwrap().full_name())
-            // } else if commenters.len() == 2 {
-            //     let mut commenters = commenters.iter();
-            //     format!("See comments from {} and {}", commenters.next().unwrap().first_name(), commenters.next().unwrap().first_name())
-            // } else {
-            //     format!("See comments from {} and {} others", commenters.iter().next().unwrap().first_name(), commenters.len() - 1)
-            // };
 
             html! {
                 p.textline edat_line=(line_index) .here[jump_here] .here-section[jump_section] {
@@ -218,7 +208,6 @@ pub fn entry(
 pub fn fiction_entry(
     headers: &HeaderMap,
     entry: &Entry,
-    user: &User
 ) -> Markup {
     let section_html = |section: &Section| {
         let content = section.content();

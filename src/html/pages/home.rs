@@ -336,11 +336,72 @@ fn conversations_widget(user: &User) -> Markup {
                 comment_text = format!("{}…", &comment_text[..150]);
             }
 
-            let mut lines = Vec::new();
+            struct ThreadLine {
+                text: String,
+                in_note: bool,
+            }
+
+            let mut thread_lines = Vec::new();
+            let mut in_aside = false;
+            let mut in_note = false;
+
+            let mut target_index: usize = 0;
+            let mut working_index = 0;
+
             for (i, line) in content.lines().enumerate() {
-                if i >= t.line.saturating_sub(4) && i <= t.line + 4 {
-                    lines.push((i, line));
+                if line.starts_with("/end") {
+                    in_aside = false;
+                    in_note = false;
+                    continue;
                 }
+                if line.starts_with("/img") {
+                    continue;
+                }
+                if line.starts_with("/aside") {
+                    in_aside = true;
+                }
+                if in_aside {
+                    continue;
+                }
+                if line.starts_with("/note") {
+                    in_note = true;
+                    continue;
+                }
+
+                thread_lines.push(ThreadLine {
+                    text: line.to_owned(),
+                    in_note,
+                });
+                if i == t.line {
+                    target_index = working_index;
+                }
+                working_index += 1;
+            }
+
+            let mut line_html = Vec::with_capacity(thread_lines.len());
+
+            let mut in_note = false;
+            for (i, line) in thread_lines.into_iter().enumerate() {
+                if i >= target_index.saturating_sub(4) && i <= target_index + 4 {
+                    if line.in_note != in_note {
+                        in_note = line.in_note;
+                        if in_note {
+                            line_html.push(html! { (PreEscaped("<div class=\"note\">")) });
+                        } else {
+                            line_html.push(html! { (PreEscaped("</div>")) });
+                        }
+                    }
+                    line_html.push(html! {
+                        @if i == target_index {
+                            .line.highlight { (PreEscaped(line.text)) }
+                        } @else {
+                            .line { (PreEscaped(line.text)) }
+                        }
+                    });
+                }
+            }
+            if in_note {
+                line_html.push(html! { (PreEscaped("</div>")) });
             }
 
             html! {
@@ -354,12 +415,8 @@ fn conversations_widget(user: &User) -> Markup {
                         }
                     }
                     .body {
-                        @for (i, line) in lines {
-                            @if i == t.line {
-                                .line.highlight { (PreEscaped(line)) }
-                            } @else {
-                                .line { (PreEscaped(line)) }
-                            }
+                        @for line in line_html {
+                            (line)
                         }
                     }
                     p.comments {
