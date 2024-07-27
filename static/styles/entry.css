@@ -41,18 +41,44 @@ h2 {
     }
 }
 
+.textline:not(:last-child) {
+    margin-bottom: 12px;
+}
+
+.retro {
+    position: relative;
+    padding: 12px 0;
+    border-width: 1px 0;
+    border-color: var(--gray);
+    border-style: solid;
+    background: var(--shadow);
+
+    & h3 {
+        font-style: italic;
+    }
+
+    & .retro-timestamp {
+        margin-left: 24px;
+        margin-bottom: 3px;
+        font: 11px var(--sans);
+        color: var(--gray);
+    }
+}
+
 .body {
     position: relative;
 
-    &>.lines>.textline {
-        margin: 0 24px;
+    &>.lines>.textline, & .retro .textline {
+        margin-left: 24px;
+        margin-right: 24px;
         font: 14px var(--serif);
         line-height: 21px;
-        color: var(--content);
         position: relative;
+        opacity: 1;
+        transition: 0.2s opacity;
 
-        &+.textline {
-            margin-top: 12px;
+        &:not(.shown-comm) {
+            color: var(--content);
         }
     }
 
@@ -75,14 +101,9 @@ h2 {
         border-color: var(--gray);
         border-style: solid;
         text-align: center;
-
-        & .textline:not(.coming-soon)+.textline {
-            margin-top: 12px;
-        }
-
-        &+.textline {
-            margin-top: 12px;
-        }
+        opacity: 1;
+        transition: 0.2s opacity;
+        margin-bottom: 12px;
     }
 
     & .note {
@@ -93,14 +114,9 @@ h2 {
         line-height: 21px;
         color: var(--content);
         font-style: italic;
-
-        & .textline:not(.note-desc)+.textline {
-            margin-top: 12px;
-        }
-
-        &+.textline {
-            margin-top: 12px;
-        }
+        opacity: 1;
+        transition: 0.2s opacity;
+        margin-bottom: 12px;
 
         & .note-desc {
             margin-bottom: 0;
@@ -116,6 +132,72 @@ h2 {
     }
 }
 
+comm {
+    display: inline;
+    border-bottom: 1px solid var(--gray);
+}
+
+err {
+    display: inline;
+    border-bottom: 1px solid var(--redgray);
+}
+
+.comm {
+    display: none;
+    opacity: 0;
+    transition: 0.2s opacity;
+    margin: 0 24px 12px 24px;
+
+    & .comm-date {
+        font: 11px var(--sans);
+        color: var(--gray);
+        margin-bottom: 6px;
+    }
+    
+    & ol {
+        margin-left: 36px;
+        list-style: none;
+        counter-reset: item;
+        font: 14px var(--serif);
+    }
+      
+    & ol li {
+        counter-increment: item;
+        position: relative;
+        color: var(--content);
+        margin-bottom: 12px;
+
+        &::before {
+            content: counter(item) ".";
+            position: absolute;
+            left: -1.5em;
+            color: var(--gray);
+
+        }
+    }
+}
+
+body:has(.shown-comm) {
+    & .textline, .note, .aside, .img, .retro {
+        &:not(.shown-comm) {
+            opacity: 0;
+        }
+    }
+
+    .comm .textline {
+        opacity: 1;
+    }
+
+    & .shown-comm {
+        color: var(--gray);
+
+        & comm, & err {
+            color: var(--content);
+            border: none;
+        }
+    }
+}
+
 .img {
     display: flex;
     flex-direction: column;
@@ -126,6 +208,8 @@ h2 {
     border-style: solid;
     padding: 12px 0;
     background: var(--shadow);
+    opacity: 1;
+    transition: 0.2s opacity;
 
     & img {
         width: calc(100% - 96px);
@@ -327,16 +411,27 @@ h2 {
         }
     }
 
+    .textline:not(:last-child) {
+        margin-bottom: 24px;
+    }
+
+    .retro {
+        padding: 24px 0;
+    
+        & .retro-timestamp {
+            margin-left: 48px;
+            margin-bottom: 6px;
+            font-size: 15px;
+        }
+    }
+
     .body {
-        &>.lines>.textline {
-            margin: 0 48px;
+        &>.lines>.textline, & .retro .textline {
+            margin-left: 48px;
+            margin-right: 48px;
 
             font-size: 20px;
             line-height: 30px;
-
-            &+.textline {
-                margin-top: 24px;
-            }
         }
 
         & .timestamp {
@@ -350,29 +445,14 @@ h2 {
             line-height: 30px;
             margin-top: 24px;
             border-width: 1px;
-
-            & .textline:not(.coming-soon)+.textline {
-                margin-top: 24px;
-            }
-
-            &+.textline {
-                margin-top: 24px;
-            }
+            margin-bottom: 24px;
         }
 
         & .note {
             padding: 12px 0 12px 24px;
-            margin: 24px 48px 0 48px;
+            margin: 0 48px 24px 48px;
             font-size: 20px;
             line-height: 30px;
-
-            & .textline:not(.note-desc)+.textline {
-                margin-top: 24px;
-            }
-
-            &+.textline {
-                margin-top: 24px;
-            }
 
             & .note-desc {
                 font-size: 15px;
@@ -398,6 +478,32 @@ h2 {
             & .open {
                 font-size: 15px;
             }
+        }
+    }
+
+    comm:hover {
+        cursor: pointer;
+    }
+    
+    err:hover {
+        cursor: pointer;
+    }
+    
+    .comm {
+        margin: 0 48px 24px 48px;
+    
+        & .comm-date {
+            font-size: 15px;
+            margin-bottom: 612x;
+        }
+        
+        & ol {
+            margin-left: 72px;
+            font-size: 20px;
+        }
+          
+        & ol li {
+            margin-bottom: 24px;
         }
     }
 
@@ -502,8 +608,14 @@ h2 {
         }
     }
 
+    .retro {
+        & .retro-timestamp {
+            margin-left: calc(50% - 450px);
+        }
+    }
+
     .body {
-        &>.lines>.textline {
+        &>.lines>.textline, & .retro .textline {
             margin-right: calc(50% - 450px);
             margin-left: calc(50% - 450px);
             user-select: none;
@@ -535,5 +647,10 @@ h2 {
     #thread {
         margin: 24px calc(50% - 450px)!important;
         max-width: 900px!important;
+    }
+
+    .comm {
+        margin-right: calc(50% - 450px);
+        margin-left: calc(50% - 450px);
     }
 }

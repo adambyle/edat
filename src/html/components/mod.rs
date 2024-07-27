@@ -282,7 +282,7 @@ pub fn widget_options(widgets: &[String]) -> Markup {
                 id: "last-widget".to_owned(),
             },
             W {
-                name: "Conversations".to_owned(),
+                name: "Comments".to_owned(),
                 description: "See where readers have recently commented".to_owned(),
                 order: order(&"conversations-widget"),
                 id: "conversations-widget".to_owned(),

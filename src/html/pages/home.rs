@@ -445,7 +445,7 @@ fn conversations_widget(user: &User) -> Markup {
 
     html! {
         .widget #conversations-widget {
-            h2 { "Conversations" }
+            h2 { "Comments" }
 
             @if threads_html.is_empty() {
                 .no-threads { "No recent comments" }

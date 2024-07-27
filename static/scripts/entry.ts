@@ -3,6 +3,62 @@ import * as universal from "./universal.js";
 import "./standard.js";
 import * as standard from "./standard.js";
 
+// Commentary handling.
+let showingCommentary = false;
+
+const comms = document.querySelectorAll("comm, err") as NodeListOf<HTMLElement>;
+for (const comm of comms) {
+    comm.onclick = () => {
+        showCommentary(comm.closest(".textline")!);
+    }
+}
+
+function showCommentary(lineElement: HTMLElement) {
+    touchTime = 0;
+    if (showingCommentary) {
+        return;
+    }
+    showingCommentary = true;
+
+    lineElement.classList.add("shown-comm");
+
+    const commentary = lineElement.nextSibling as HTMLElement;
+    setTimeout(() => {
+        commentary.style.display = "block";
+        setTimeout(() => {
+            commentary.style.opacity = "1";
+        }, 10);
+    }, 100);
+}
+
+function hideCommentary() {
+    touchTime = 0;
+    const shownComm = document.querySelector(".shown-comm")!
+    shownComm.classList?.remove("shown-comm");
+    
+    const commentary = shownComm.nextSibling as HTMLElement;
+    commentary.style.opacity = "0";
+    commentary.style.display = "none";
+
+    showingCommentary = false;
+}
+
+document.body.addEventListener("click", ev => {
+    console.log("Hello");
+    if (!showingCommentary) {
+        return;
+    }
+    
+    const rect = document.querySelector(".shown-comm")?.getBoundingClientRect()!;
+    if (ev.clientX < rect.left
+        || ev.clientX > rect.right
+        || ev.clientY < rect.top
+        || ev.clientY > rect.bottom
+    ) {
+        hideCommentary();
+    }
+});
+
 // Comment handling.
 let openComment: HTMLElement | null = null;
 
@@ -16,7 +72,7 @@ for (const textline of textlines) {
     textline.onclick = ev => {
         const lastClick = touchTime;
         touchTime = Date.now();
-        if (touchTime - lastClick > 600) {
+        if (touchTime - lastClick > 600 || showingCommentary) {
             return;
         }
         ev.preventDefault();

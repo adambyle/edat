@@ -99,15 +99,23 @@ impl Index {
             .replace("</I>", "****")
             .replace("/note", "*****")
             .replace("/aside", "******")
+            .replace("/comm", "*****")
+            .replace("/retro", "******")
             .replace("/end", "****");
 
         let img_regex = Regex::new(r"/img [\S]+").unwrap();
+        let comms_regex = Regex::new(r"/comms [\S]+").unwrap();
         let mut new_text = processed_text.clone();
-        for instance in img_regex.find_iter(&processed_text) {
-            new_text = format!("{}{}{}",
+        let matches = img_regex
+            .find_iter(&processed_text)
+            .chain(comms_regex.find_iter(&processed_text));
+        for instance in matches {
+            new_text = format!(
+                "{}{}{}",
                 &new_text[0..instance.start()],
                 "*".repeat(instance.len()),
-                &new_text[instance.end()..]);
+                &new_text[instance.end()..]
+            );
         }
         let processed_text = new_text;
 
@@ -246,13 +254,13 @@ impl Index {
 
     /// Returns a mapping of all words and their counts.
     pub fn all_words(&self) -> HashMap<String, usize> {
-        self.sections
-            .iter()
-            .flat_map(|s| s.words.iter())
-            .fold(HashMap::new(), |mut map, (word, spans)| {
+        self.sections.iter().flat_map(|s| s.words.iter()).fold(
+            HashMap::new(),
+            |mut map, (word, spans)| {
                 *map.entry(word.to_owned()).or_insert(0) += spans.len();
                 map
-            })
+            },
+        )
     }
 }
 
@@ -322,11 +330,7 @@ impl Section {
                 let w = word.to_lowercase().replace('’', "'");
                 let word = stemmer.stem(&w).into_owned();
 
-                let spans = self
-                    .words
-                    .get(&word)
-                    .cloned()
-                    .unwrap_or_else(Vec::new);
+                let spans = self.words.get(&word).cloned().unwrap_or_else(Vec::new);
 
                 (word, spans)
             })

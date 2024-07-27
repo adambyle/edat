@@ -12,6 +12,7 @@ body {
     --clearbg: #fafbfcd0; 
     --shadow: #f0f2f5; /* 2% 96% */
     --gray: #a4a9b3; /* 8% 70% */
+    --redgray: #c99ca7; /* 330 deg, V: 30 */
     --content: #12141a; /* 30% 10% */
 
     background: var(--bg);
@@ -23,7 +24,8 @@ body {
         --bg: #15181f; /* 30% 12% */
         --clearbg: #15181fd0;
         --shadow: #090a0d; /* 30% 5% */
-        --gray: #4c5059; /* 15% 10% */
+        --gray: #4c5059; /* 15% 35% */
+        --redgray: #593e4a; /* 330 deg, V: 30 */
         --content: #f0f2f5; /* 2% 96% */
     }
 }
