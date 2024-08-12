@@ -4,3 +4,5 @@
 /archived/*
 /archive.zip
 **/*.js
+.spotify_client_id
+.spotify_client_secret

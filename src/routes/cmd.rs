@@ -1,6 +1,11 @@
-use std::{fs::{self, File}, io::Write, path::Path};
+use std::{
+    fs::{self, File},
+    io::Write,
+    path::Path,
+};
 
-use chrono::NaiveDate;
+use axum::http::Extensions;
+use chrono::{NaiveDate, Utc};
 use indexmap::IndexMap;
 use serde::Deserialize;
 
@@ -156,6 +161,25 @@ pub enum Body {
     InitUser {
         id: String,
     },
+    NewReview,
+    SetNewReview {
+        album_id: String,
+        genre: Option<String>,
+        score: Option<i32>,
+        review: Option<String>,
+        first_listened: Option<String>,
+    },
+    SetTrackReview {
+        track_id: String,
+        score: i32,
+    },
+    NewMonthInReview,
+    SetMonthInReview {
+        albums: Vec<String>,
+        tracks: Vec<String>,
+        month: usize,
+        year: i32,
+    },
 }
 
 pub async fn cmd(
@@ -227,10 +251,7 @@ pub async fn cmd(
         cmd_html::VolumeInfo {
             id: volume.id().to_owned(),
             title: volume.title().to_owned(),
-            subtitle: volume
-                .subtitle()
-                .cloned()
-                .unwrap_or_else(String::new),
+            subtitle: volume.subtitle().cloned().unwrap_or_else(String::new),
             owner: volume.owner_id().to_owned(),
             content_type: format!("{:?}", volume.kind()),
             entries,
@@ -280,10 +301,7 @@ pub async fn cmd(
             .collect();
         cmd_html::SectionInfo {
             id: section.id(),
-            heading: section
-                .heading()
-                .cloned()
-                .unwrap_or_else(String::new),
+            heading: section.heading().cloned().unwrap_or_else(String::new),
             description: section.description().to_owned(),
             summary: section.summary().to_owned(),
             date: section.date().format("%Y-%m-%d").to_string(),
@@ -403,6 +421,8 @@ pub async fn cmd(
         }
         B::NextSectionId => return Ok(Json(index.next_section_id()).into_response()),
         B::NewEntry => cmd_html::edit_entry(None),
+        B::NewMonthInReview => cmd_html::add_month_in_review(),
+        B::NewReview => cmd_html::add_review(),
         B::NewSection { date } => cmd_html::edit_section(None, &date),
         B::NewUser => cmd_html::edit_user(None),
         B::NewVolume => cmd_html::edit_volume(None),
@@ -443,6 +463,35 @@ pub async fn cmd(
                 cmd_html::content("edat".to_owned(), content)
             }
         }
+        B::SetMonthInReview {
+            albums,
+            tracks,
+            month,
+            year,
+        } => {
+            let month = month - 1;
+            let existing_month_in_review = index
+                .months_in_review
+                .iter_mut()
+                .find(|m| m.year == year && m.month == month);
+            let mut albums = albums.into_iter();
+            let best_album = albums.next().unwrap();
+            let runners_up = albums.collect();
+            if let Some(existing_month_in_review) = existing_month_in_review {
+                existing_month_in_review.album_of_the_month = best_album;
+                existing_month_in_review.runners_up = runners_up;
+                existing_month_in_review.tracks_of_the_month = tracks;
+            } else {
+                index.months_in_review.push(MonthInReview {
+                    year,
+                    month,
+                    album_of_the_month: best_album,
+                    runners_up,
+                    tracks_of_the_month: tracks,
+                });
+            }
+            cmd_html::ok()
+        }
         B::SetNewEntry {
             title,
             position,
@@ -457,6 +506,47 @@ pub async fn cmd(
                 position,
             ))?;
             cmd_html::entry(entry_info(entry.as_immut()))
+        }
+        B::SetNewReview {
+            album_id,
+            genre,
+            score,
+            review,
+            first_listened,
+        } => {
+            let now = Utc::now().timestamp();
+            let existing_album = index.albums.iter_mut().find(|a| a.spotify_id == album_id);
+            if let Some(existing_album) = existing_album {
+                let existing_rating = existing_album.ratings.last();
+                let existing_score = existing_rating.and_then(|r| r.score);
+                let existing_review = existing_rating.and_then(|r| r.review.clone());
+
+                let rating = Rating {
+                    review: review.or(existing_review),
+                    score: score.or(existing_score),
+                    reviewed_on: now,
+                };
+
+                existing_album.ratings.push(rating);
+            } else {
+                let rating = Rating {
+                    review,
+                    score,
+                    reviewed_on: now,
+                };
+
+                let first_listened =
+                    first_listened.unwrap_or_else(|| Utc::now().format("%Y-%m-%d").to_string());
+
+                index.albums.push(ListenedAlbum {
+                    spotify_id: album_id,
+                    genre,
+                    first_listened,
+                    ratings: vec![rating],
+                });
+            }
+            index.save_all();
+            cmd_html::ok()
         }
         B::SetNewSection {
             position,
@@ -511,6 +601,19 @@ pub async fn cmd(
             section.set_summary(&summary);
             section.set_date(date);
             cmd_html::section(section_info(section.as_immut()))
+        }
+        B::SetTrackReview { track_id, score } => {
+            let existing_track_review = index.tracks.iter_mut().find(|t| t.spotify_id == track_id);
+            if let Some(existing_track_review) = existing_track_review {
+                existing_track_review.score = score;
+            } else {
+                index.tracks.push(ListenedTrack {
+                    spotify_id: track_id,
+                    score,
+                });
+            }
+            index.save_all();
+            cmd_html::ok()
         }
         B::SetUser {
             id,

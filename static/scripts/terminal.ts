@@ -214,7 +214,34 @@ type Cmd =
         InitUser: {
             id: string,
         }
+    }
+    | "NewReview"
+    | {
+        SetNewReview: SetNewReviewBody,
+    }
+    | {
+        SetTrackReview: {
+            track_id: string,
+            score: number,
+        }
+    }
+    | "NewMonthInReview"
+    | {
+        SetMonthInReview: {
+            albums: string[],
+            tracks: string[],
+            month: number,
+            year: number,
+        }
     };
+
+interface SetNewReviewBody {
+    album_id: string,
+    genre?: string,
+    score?: number,
+    review?: string,
+    first_listened?: string,
+}
 
 const commandInput = document.getElementById("command") as HTMLInputElement;
 const elInvalidCommand = document.getElementById("invalid-command") as HTMLParagraphElement;
@@ -224,7 +251,7 @@ commandInput.onkeydown = (ev) => {
     elInvalidCommand.style.opacity = "0.0";
 
     if (ev.key == "Enter") {
-        parseCommand(commandInput.value.toLowerCase());
+        parseCommand(commandInput.value);
     }
 }
 
@@ -574,6 +601,32 @@ function parseCommand(command: string) {
                 id: user,
             },
         });
+    } else if (root == "review") {
+        if (!expectArgs(2)) {
+            return;
+        }
+        const mode = args[1];
+        if (mode == "album") {
+            submitAction = newReview;
+            cmd("NewReview");
+        } else if (mode == "track") {
+            if (!expectArgs(4)) {
+                return;
+            }
+            const trackId = args[2];
+            const score = Number.parseInt(args[3]);
+            if (!Number.isNaN(score)) {
+                cmd({
+                    SetTrackReview: {
+                        track_id: trackId,
+                        score,
+                    }
+                });
+            }
+        } else if (mode == "month") {
+            submitAction = newMonthInReview;
+            cmd("NewMonthInReview");
+        }
     } else {
         parseError();
     }
@@ -667,6 +720,78 @@ function newEntry(position: Position<[string, number], string>) {
             });
         }
     };
+}
+
+function newReview() {
+    const albumId = document.getElementById("album-id") as HTMLInputElement;
+    const albumGenre = document.getElementById("album-genre") as HTMLInputElement;
+    const albumScore = document.getElementById("album-score") as HTMLInputElement;
+    const albumReview = document.getElementById("contents") as HTMLInputElement;
+    const albumListenDate = document.getElementById("album-listen-date") as HTMLInputElement;
+
+    if (albumId.value.length > 0) {
+        submitAction = () => {};
+
+        let reviewDetails: SetNewReviewBody = {
+            album_id: albumId.value,
+        };
+
+        const genre = albumGenre.value.trim();
+        if (genre.length > 0) {
+            reviewDetails.genre = genre;
+        }
+
+        const score = Number.parseInt(albumScore.value);
+        if (!Number.isNaN(score)) {
+            reviewDetails.score = score;
+        }
+
+        const review = albumReview.value.trim();
+        if (review.length > 0) {
+            reviewDetails.review = review;
+        }
+
+        const listenDate = albumListenDate.value.trim();
+        if (listenDate.length > 0) {
+            reviewDetails.first_listened = listenDate;
+        }
+
+        cmd({
+            SetNewReview: reviewDetails,
+        });
+    }
+}
+
+function newMonthInReview() {
+    const reviewAlbums = document.getElementById("review-albums") as HTMLTextAreaElement;
+    const reviewTracks = document.getElementById("review-tracks") as HTMLTextAreaElement;
+    const reviewMonth = document.getElementById("review-month") as HTMLInputElement;
+
+    const albums = reviewAlbums.value.trim().split(" ").filter(a => a.length > 0);
+    const tracks = reviewTracks.value.trim().split(" ").filter(t => t.length > 0);
+    const dateSplit = reviewMonth.value.split("-");
+    if (dateSplit.length != 2) {
+        return;
+    }
+    const year = Number.parseInt(dateSplit[0]);
+    const month = Number.parseInt(dateSplit[1]);
+    if (Number.isNaN(year) || Number.isNaN(month)) {
+        return;
+    }
+    if (albums.length == 0 || tracks.length == 0) {
+        return;
+    }
+
+    submitAction = () => {};
+
+    cmd({
+        SetMonthInReview: {
+            albums,
+            tracks,
+            year,
+            month,
+        }
+    });
 }
 
 function newSection(position: Position<string, number>) {
@@ -931,6 +1056,50 @@ function parseError() {
 
 let submitAction: () => void;
 
+function handlePaste(
+    element: HTMLTextAreaElement, 
+    processing: HTMLElement,
+    ev: ClipboardEvent
+) {
+    ev.preventDefault();
+    const html = ev.clipboardData?.getData("text/html");
+    const text = ev.clipboardData?.getData("text/plain");
+
+    if (html && html.length > 0) {
+        const selectionStart = element.selectionStart!;
+        const selectionEnd = element.selectionEnd!;
+        const before = element.value.substring(0, selectionStart);
+        const after = element.value.substring(selectionEnd);
+
+        let output = "";
+        processing.innerHTML = html;
+        for (const p of processing.querySelectorAll("p")) {
+            let text = "";
+            for (const span of p.children as HTMLCollectionOf<HTMLSpanElement>) {
+                if (span.style.fontStyle == "italic") {
+                    text += "<i>";
+                }
+                text += `${span.innerText}`;
+                if (span.style.fontStyle == "italic") {
+                    text += "</i>";
+                }
+            }
+            output += text;
+            output += "\n";
+        }
+
+        element.value = `${before}${output}${after}`;
+        element.setSelectionRange(selectionStart + html.length, selectionStart + html.length);
+    } else if (text && text.length > 0) {
+        const selectionStart = element.selectionStart!;
+        const selectionEnd = element.selectionEnd!;
+        const before = element.value.substring(0, selectionStart);
+        const after = element.value.substring(selectionEnd);
+        element.value = `${before}${text}${after}`;
+        element.setSelectionRange(selectionStart + text.length, selectionStart + text.length);
+    }
+}
+
 function cmd(command: Cmd) {
     elResponse.innerHTML = "";
     fetch("/cmd", {
@@ -948,45 +1117,7 @@ function cmd(command: Cmd) {
         const elContents = document.getElementById("contents") as HTMLTextAreaElement;
         if (elContents) {
             const elProcessing = document.getElementById("processing") as HTMLDivElement;
-            elContents.onpaste = (ev) => {
-                ev.preventDefault();
-                const html = ev.clipboardData?.getData("text/html");
-                const text = ev.clipboardData?.getData("text/plain");
-
-                if (html && html.length > 0) {
-                    const selectionStart = elContents.selectionStart!;
-                    const selectionEnd = elContents.selectionEnd!;
-                    const before = elContents.value.substring(0, selectionStart);
-                    const after = elContents.value.substring(selectionEnd);
-
-                    let output = "";
-                    elProcessing.innerHTML = html;
-                    for (const p of elProcessing.querySelectorAll("p")) {
-                        let text = "";
-                        for (const span of p.children as HTMLCollectionOf<HTMLSpanElement>) {
-                            if (span.style.fontStyle == "italic") {
-                                text += "<i>";
-                            }
-                            text += `${span.innerText}`;
-                            if (span.style.fontStyle == "italic") {
-                                text += "</i>";
-                            }
-                        }
-                        output += text;
-                        output += "\n";
-                    }
-
-                    elContents.value = `${before}${output}${after}`;
-                    elContents.setSelectionRange(selectionStart + html.length, selectionStart + html.length);
-                } else if (text && text.length > 0) {
-                    const selectionStart = elContents.selectionStart!;
-                    const selectionEnd = elContents.selectionEnd!;
-                    const before = elContents.value.substring(0, selectionStart);
-                    const after = elContents.value.substring(selectionEnd);
-                    elContents.value = `${before}${text}${after}`;
-                    elContents.setSelectionRange(selectionStart + text.length, selectionStart + text.length);
-                }
-            }
+            elContents.onpaste = (ev) => handlePaste(elContents, elProcessing, ev);
         }
 
         const elImage = document.getElementById("image") as HTMLImageElement | null;

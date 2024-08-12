@@ -18,6 +18,7 @@ use user::UserData;
 pub use user::{User, UserMut};
 use volume::VolumeData;
 pub use volume::{Volume, VolumeMut};
+pub use music::{ListenedAlbum, ListenedTrack, MonthInReview, Rating};
 
 /// Data structures for user comments.
 pub mod comments;
@@ -30,6 +31,9 @@ pub mod history;
 
 /// Data structures for the index binidng all the website's resources.
 pub mod index;
+
+/// Music review data structures.
+pub mod music;
 
 /// Data structures for sections which contain the text content.
 pub mod section;

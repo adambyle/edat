@@ -72,6 +72,12 @@ pub struct SectionComment {
 
 pub struct Volumes(pub Vec<(String, String)>);
 
+pub fn ok() -> maud::Markup {
+    html! {
+        p.ok { "Done" }
+    }
+}
+
 pub fn missing(category: &str, id: String) -> maud::Markup {
     html! {
         p.error { "Unknown " (category) " " mono { (id) } }
@@ -321,6 +327,35 @@ pub fn edit_section(section: Option<&SectionInfo>, date: &str) -> maud::Markup {
         textarea #section-summary maxlength="150" { (PreEscaped(summary)) }
         label { "Added" }
         input #section-date value=(date);
+        button #submit { "Submit" }
+    }
+}
+
+pub fn add_review() -> maud::Markup {
+    html! {
+        label { "Album ID" }
+        input #album-id;
+        label { "Genre" }
+        input #album-genre;
+        label { "Score" }
+        input #album-score type="number";
+        label { "Review" }
+        textarea #contents { }
+        div #processing {}
+        label { "First listened" }
+        input #album-listen-date;
+        button #submit { "Submit" }
+    }
+}
+
+pub fn add_month_in_review() -> maud::Markup {
+    html! {
+        label { "Albums" }
+        textarea #review-albums {}
+        label { "Tracks" }
+        textarea #review-tracks {}
+        label { "Month" }
+        input #review-month;
         button #submit { "Submit" }
     }
 }

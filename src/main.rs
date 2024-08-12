@@ -7,6 +7,7 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
+use data::music::SpotifyCredentials;
 use tokio::net::TcpListener;
 
 mod data;
@@ -15,18 +16,8 @@ mod image;
 mod routes;
 mod search;
 
-#[derive(Clone)]
-pub struct AppState {
-    index: Arc<Mutex<data::Index>>,
-}
-
 #[tokio::main]
 async fn main() {
-    image::entry_image(
-        "Breaching the Gates of Heaven",
-        "After forming unbreakable memories with Bronwyn and seeing favorable odds, I am forced to fix a breaking friendship when feelings aren’t returned.",
-    );
-
     let index_load_start = Instant::now();
     let mut index = data::Index::init();
     if let Some(arg) = std::env::args().nth(1) {
@@ -39,6 +30,7 @@ async fn main() {
 
     let state = AppState {
         index: Arc::new(Mutex::new(index)),
+        spotify_credentials: SpotifyCredentials::fresh().await,
     };
 
     let app = Router::new()
@@ -56,7 +48,7 @@ async fn main() {
             post(routes::post::edit_comment),
         )
         .route("/entry/:entry", get(routes::pages::entry))
-        .route("/forum", get(routes::pages::forum))
+        .route("/music", get(routes::pages::music))
         .route("/history", get(routes::pages::history))
         .route("/image/:file", get(routes::files::image))
         .route("/image/:file", post(routes::cmd::image_upload))
@@ -114,4 +106,10 @@ async fn listener() -> TcpListener {
 #[cfg(not(debug_assertions))]
 async fn listener() -> TcpListener {
     TcpListener::bind("0.0.0.0:80").await.unwrap()
+}
+
+#[derive(Clone)]
+pub struct AppState {
+    index: Arc<Mutex<data::Index>>,
+    spotify_credentials: SpotifyCredentials,
 }

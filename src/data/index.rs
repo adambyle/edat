@@ -14,6 +14,9 @@ use crate::search;
 #[derive(Serialize, Deserialize)]
 struct IndexFile {
     volumes: Vec<String>,
+    albums: Vec<ListenedAlbum>,
+    tracks: Vec<ListenedTrack>,
+    months_in_review: Vec<MonthInReview>,
     next_section_id: u32,
 }
 
@@ -24,6 +27,9 @@ pub struct Index {
     pub(super) entries: HashMap<String, EntryData>,
     pub(super) sections: HashMap<u32, SectionData>,
     pub(super) next_section_id: u32,
+    pub albums: Vec<ListenedAlbum>,
+    pub tracks: Vec<ListenedTrack>,
+    pub months_in_review: Vec<MonthInReview>,
 }
 
 impl Index {
@@ -51,6 +57,8 @@ impl Index {
         for id in user_ids {
             drop(self.user_mut(id));
         }
+
+        self.save();
     }
 
     /// Read data from the filesystem and construct and interface to the journal data.
@@ -127,6 +135,9 @@ impl Index {
             volumes,
             entries,
             sections,
+            albums: index_file.albums,
+            tracks: index_file.tracks,
+            months_in_review: index_file.months_in_review,
             next_section_id: index_file.next_section_id,
         }
     }
@@ -134,6 +145,9 @@ impl Index {
     pub(super) fn save(&self) {
         let index_file = serde_json::to_string_pretty(&IndexFile {
             volumes: self.volumes.keys().cloned().collect(),
+            albums: self.albums.clone(),
+            tracks: self.tracks.clone(),
+            months_in_review: self.months_in_review.clone(),
             next_section_id: self.next_section_id,
         })
         .expect("error serializing index file");

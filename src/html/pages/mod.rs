@@ -1,7 +1,7 @@
 use super::*;
 
 pub mod entry;
-pub mod forum;
+pub mod music;
 pub mod history;
 pub mod home;
 pub mod profile;

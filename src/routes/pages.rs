@@ -84,11 +84,10 @@ pub async fn entry_by_section(
     )))
 }
 
-pub async fn forum(headers: HeaderMap, State(state): State<AppState>) -> Result<Response, Markup> {
+pub async fn music(headers: HeaderMap, State(state): State<AppState>) -> Result<Response, Markup> {
     let index = state.index.lock().unwrap();
-    let user = auth::get_user(&headers, &index, Some("Forum".to_owned()), false)?;
 
-    Ok(no_cache(html::pages::forum::forum(&headers, &user)))
+    Ok(no_cache(html::pages::music::music(&headers)))
 }
 
 pub async fn history(

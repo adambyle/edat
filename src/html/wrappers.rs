@@ -17,7 +17,7 @@ pub(super) fn standard(body: Markup, drawers: Vec<Markup>, topdrawer: Option<Mar
                 a href="/" { "HOME" }
                 a href="/library" { "LIBRARY" }
                 a href="/history" { "HISTORY" }
-                a href="/forum" { "FORUM" }
+                a href="/music" { "MUSIC" }
                 a href="/profile" { "PROFILE" }
             }
             (body)
