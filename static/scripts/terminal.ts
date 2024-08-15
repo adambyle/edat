@@ -240,6 +240,7 @@ interface SetNewReviewBody {
     genre?: string,
     score?: number,
     review?: string,
+    summary?: string,
     first_listened?: string,
 }
 
@@ -727,6 +728,7 @@ function newReview() {
     const albumGenre = document.getElementById("album-genre") as HTMLInputElement;
     const albumScore = document.getElementById("album-score") as HTMLInputElement;
     const albumReview = document.getElementById("contents") as HTMLInputElement;
+    const albumSummary = document.getElementById("album-summary") as HTMLInputElement;
     const albumListenDate = document.getElementById("album-listen-date") as HTMLInputElement;
 
     if (albumId.value.length > 0) {
@@ -749,6 +751,11 @@ function newReview() {
         const review = albumReview.value.trim();
         if (review.length > 0) {
             reviewDetails.review = review;
+        }
+
+        const summary = albumSummary.value.trim();
+        if (summary.length > 0) {
+            reviewDetails.summary = summary;
         }
 
         const listenDate = albumListenDate.value.trim();

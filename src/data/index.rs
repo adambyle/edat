@@ -142,7 +142,7 @@ impl Index {
         }
     }
 
-    pub(super) fn save(&self) {
+    pub fn save_index(&self) {
         let index_file = serde_json::to_string_pretty(&IndexFile {
             volumes: self.volumes.keys().cloned().collect(),
             albums: self.albums.clone(),
@@ -152,7 +152,10 @@ impl Index {
         })
         .expect("error serializing index file");
         fs::write("content/index.json", index_file).expect("error writing index file");
+    }
 
+    pub(super) fn save(&self) {
+        self.save_index();
         let users_file =
             serde_json::to_string_pretty(&self.users.keys().cloned().collect::<Vec<_>>())
                 .expect("error serializing users file");

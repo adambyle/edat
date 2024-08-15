@@ -1,3 +1,5 @@
+use axum::extract::Path;
+
 use serde::Deserialize;
 
 use crate::image;
@@ -11,7 +13,7 @@ pub async fn entry(
 ) -> Result<Response, Markup> {
     use html::pages::entry as entry_html;
 
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
 
     let entry = match index.entry(entry.clone()) {
         Ok(entry) => entry,
@@ -43,7 +45,7 @@ pub async fn entry_by_section(
 ) -> Result<Response, Markup> {
     use html::pages::entry as entry_html;
 
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
 
     let section = match index.section(section) {
         Ok(section) => section,
@@ -84,24 +86,45 @@ pub async fn entry_by_section(
     )))
 }
 
-pub async fn music(headers: HeaderMap, State(state): State<AppState>) -> Result<Response, Markup> {
-    let index = state.index.lock().unwrap();
+pub async fn music(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> Result<Response, Markup> {
+    let mut spotify_credentials = state.spotify_credentials.lock().await;
+    let access_token = spotify_credentials.access_token().await;
+    let index = state.index.lock().await;
 
-    Ok(no_cache(html::pages::music::music(&headers)))
+    Ok(no_cache(
+        html::pages::music::music(&index, access_token, &headers).await,
+    ))
+}
+
+pub async fn month_in_review(
+    headers: HeaderMap,
+    Path(month): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Response, Markup> {
+    let mut spotify_credentials = state.spotify_credentials.lock().await;
+    let access_token = spotify_credentials.access_token().await;
+    let index = state.index.lock().await;
+
+    Ok(no_cache(
+        html::pages::music::month_in_review(&index, month, access_token, &headers).await,
+    ))
 }
 
 pub async fn history(
     headers: HeaderMap,
     State(state): State<AppState>,
 ) -> Result<Response, Markup> {
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
     let user = auth::get_user(&headers, &index, Some("Upload history".to_owned()), false)?;
 
     Ok(no_cache(html::pages::history::history(&headers, &user)))
 }
 
 pub async fn home(headers: HeaderMap, State(state): State<AppState>) -> Result<Response, Markup> {
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
     let user = auth::get_user(&headers, &index, Some("Home".to_owned()), false)?;
 
     Ok(no_cache(html::pages::home::home(&headers, &user)))
@@ -111,7 +134,7 @@ pub async fn profile(
     headers: HeaderMap,
     State(state): State<AppState>,
 ) -> Result<Response, Markup> {
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
     let user = auth::get_user(&headers, &index, Some("Profile".to_owned()), false)?;
 
     Ok(no_cache(html::pages::profile::profile(&headers, &user)))
@@ -122,7 +145,7 @@ pub async fn search(
     State(state): State<AppState>,
     ReqPath(searches): ReqPath<String>,
 ) -> Result<Response, Markup> {
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
     let _ = auth::get_user(&headers, &index, Some("Search".to_owned()), false)?;
 
     let searches: Vec<_> = searches.split(",").filter(|s| !s.is_empty()).collect();
@@ -136,14 +159,14 @@ pub async fn search_empty(
     headers: HeaderMap,
     State(state): State<AppState>,
 ) -> Result<Response, Markup> {
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
     let _ = auth::get_user(&headers, &index, None, false)?;
 
     Ok(no_cache(html::pages::search::search(&headers, &index, &[])))
 }
 
 pub async fn terminal(headers: HeaderMap, State(state): State<AppState>) -> Result<Markup, Markup> {
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
     let user = auth::get_user(&headers, &index, Some("Terminal".to_owned()), false)?;
     Ok(html::pages::terminal(
         &headers,
@@ -156,7 +179,7 @@ pub async fn volume(
     State(state): State<AppState>,
     ReqPath(volume): ReqPath<String>,
 ) -> Result<Response, Markup> {
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
 
     let volume = match index.volume(volume.clone()) {
         Ok(volume) => volume,
@@ -174,7 +197,7 @@ pub async fn volumes(
     headers: HeaderMap,
     State(state): State<AppState>,
 ) -> Result<Response, Markup> {
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
     auth::get_user(&headers, &index, Some("The library".to_owned()), false)?;
     Ok(no_cache(html::pages::volume::library(&headers, &index)))
 }

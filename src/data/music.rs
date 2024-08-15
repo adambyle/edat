@@ -1,7 +1,10 @@
-use std::{fs, ops::Deref};
+use std::{collections::HashMap, fs, ops::Deref};
 
 use chrono::{NaiveDate, Utc};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
+
+use super::Index;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MonthInReview {
@@ -16,6 +19,7 @@ pub struct MonthInReview {
 pub struct Rating {
     pub score: Option<i32>,
     pub reviewed_on: i64,
+    pub summary: Option<String>,
     pub review: Option<String>,
 }
 
@@ -33,7 +37,7 @@ pub struct ListenedTrack {
     pub score: i32,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AlbumData {
     pub title: String,
     pub artist: String,
@@ -42,7 +46,7 @@ pub struct AlbumData {
     pub release: String,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TrackData {
     pub title: String,
     pub artist: String,
@@ -52,7 +56,7 @@ pub struct TrackData {
     pub release: String,
 }
 
-pub async fn album_data(album_id: String, access_token: String) -> AlbumData {
+pub async fn album_data(album_id: &str, access_token: &str) -> AlbumData {
     let url = format!("https://api.spotify.com/v1/albums/{album_id}");
     let request = reqwest::Client::new().get(url).bearer_auth(access_token);
 
@@ -92,7 +96,7 @@ pub async fn album_data(album_id: String, access_token: String) -> AlbumData {
         }
         "day" => {
             let date = NaiveDate::parse_from_str(&response.release_date, "%Y-%m-%d").unwrap();
-            date.format("%b %d, %Y").to_string()
+            date.format("%b %-d, %Y").to_string()
         }
         _ => unreachable!(),
     };
@@ -106,7 +110,7 @@ pub async fn album_data(album_id: String, access_token: String) -> AlbumData {
     }
 }
 
-pub async fn track_data(track_id: String, access_token: String) -> TrackData {
+pub async fn track_data(track_id: &str, access_token: &str) -> TrackData {
     let url = format!("https://api.spotify.com/v1/tracks/{track_id}");
     let request = reqwest::Client::new().get(url).bearer_auth(access_token);
 
@@ -170,7 +174,6 @@ pub async fn track_data(track_id: String, access_token: String) -> TrackData {
     }
 }
 
-#[derive(Clone)]
 pub struct SpotifyCredentials {
     client_id: String,
     client_secret: String,
@@ -229,5 +232,106 @@ impl SpotifyCredentials {
 
     pub async fn access_token(&mut self) -> &str {
         &self.refresh().await.access_token
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct SpotifyData {
+    pub albums: HashMap<String, AlbumData>,
+    pub tracks: HashMap<String, TrackData>,
+    last_updated: i64,
+}
+
+impl SpotifyData {
+    pub async fn refresh_file(index: &Index, access_token: String) -> Self {
+        let mut unresolved_albums = HashMap::new();
+        let mut unresolved_tracks = HashMap::new();
+
+        let track_regex = Regex::new("%(.+?)%").unwrap();
+
+        for track in &index.tracks {
+            let access_token = access_token.clone();
+            let id = track.spotify_id.clone();
+            unresolved_tracks.insert(
+                track.spotify_id.clone(),
+                tokio::spawn(async move { track_data(&id, &access_token).await }),
+            );
+        }
+
+        for album in &index.albums {
+            {
+                let access_token = access_token.clone();
+                let id = album.spotify_id.clone();
+                unresolved_albums.insert(
+                    album.spotify_id.clone(),
+                    tokio::spawn(async move { album_data(&id, &access_token).await }),
+                );
+            }
+
+            if let Some(review) = album.ratings.last().and_then(|r| r.review.as_ref()) {
+                for capture in track_regex.captures_iter(review) {
+                    let access_token = access_token.clone();
+                    let track_id = capture.get(0).unwrap().as_str().to_owned();
+
+                    unresolved_tracks
+                        .entry(track_id.clone())
+                        .or_insert_with(|| {
+                            tokio::spawn(async move {
+                                track_data(&track_id, &access_token).await
+                            })
+                        });
+                }
+            }
+        }
+
+        for month in &index.months_in_review {
+            for track in &month.tracks_of_the_month {
+                let access_token = access_token.clone();
+                let track = track.clone();
+                unresolved_tracks.entry(
+                    track.clone()).or_insert_with(
+                    || tokio::spawn(async move { track_data(&track, &access_token).await }),
+                );
+            }
+        }
+
+        let mut albums = HashMap::new();
+        for (id, album) in unresolved_albums {
+            albums.insert(id, album.await.unwrap());
+        }
+
+        let mut tracks = HashMap::new();
+        for (id, track) in unresolved_tracks {
+            tracks.insert(id, track.await.unwrap());
+        }
+
+        let data = Self {
+            albums,
+            tracks,
+            last_updated: Utc::now().timestamp(),
+        };
+
+        tokio::fs::write(
+            "content/spotify.json",
+            serde_json::to_string(&data).unwrap(),
+        )
+        .await
+        .unwrap();
+
+        data
+    }
+
+    pub async fn from_file(index: &Index, access_token: String) -> Self {
+        let data = tokio::fs::read_to_string("content/spotify.json")
+            .await
+            .unwrap();
+        let data: Self = serde_json::from_str(&data).unwrap();
+        let week_in_seconds = 7 * 24 * 60 * 60;
+
+        if Utc::now().timestamp() - data.last_updated > week_in_seconds {
+            Self::refresh_file(index, access_token).await
+        } else {
+            data
+        }
     }
 }

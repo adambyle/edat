@@ -339,6 +339,8 @@ pub fn add_review() -> maud::Markup {
         input #album-genre;
         label { "Score" }
         input #album-score type="number";
+        label { "Summary" }
+        textarea #album-summary maxlength="150" { }
         label { "Review" }
         textarea #contents { }
         div #processing {}

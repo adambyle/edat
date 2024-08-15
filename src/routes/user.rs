@@ -15,7 +15,7 @@ pub async fn register(
     State(state): State<AppState>,
     Json(body): Json<RegisterBody>,
 ) {
-    let mut index = state.index.lock().unwrap();
+    let mut index = state.index.lock().await;
 
     // Collect the sections the user has read.
     let mut sections: Vec<u32> = Vec::new();
@@ -52,7 +52,7 @@ pub async fn set_widgets(
     State(state): State<AppState>,
     Json(widgets): Json<Vec<String>>,
 ) -> StatusCode {
-    let mut index = state.index.lock().unwrap();
+    let mut index = state.index.lock().await;
 
     let user_id = {
         let Ok(user) = auth::get_user(&headers, &index, None, false) else {
@@ -72,7 +72,7 @@ pub async fn set_preferences(
     State(state): State<AppState>,
     Json(body): Json<HashMap<String, Option<String>>>,
 ) {
-    let mut index = state.index.lock().unwrap();
+    let mut index = state.index.lock().await;
 
     let user_id = {
         let Ok(user) = auth::get_user(&headers, &index, None, false) else {
@@ -106,7 +106,7 @@ pub async fn read(
     ReqPath(id): ReqPath<String>,
     Query(options): Query<ReadQuery>,
 ) -> StatusCode {
-    let mut index = state.index.lock().unwrap();
+    let mut index = state.index.lock().await;
 
     let user_id = {
         let Ok(user) = auth::get_user(&headers, &index, None, false) else {

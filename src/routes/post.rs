@@ -6,7 +6,7 @@ pub async fn comment(
     ReqPath((section, line)): ReqPath<(u32, usize)>,
     body: String,
 ) -> StatusCode {
-    let mut index = state.index.lock().unwrap();
+    let mut index = state.index.lock().await;
 
     let Ok(user) = auth::get_user(&headers, &index, None, false) else {
         return StatusCode::INTERNAL_SERVER_ERROR;
@@ -27,7 +27,7 @@ pub async fn edit_comment(
     ReqPath((section, uuid)): ReqPath<(u32, u128)>,
     body: String,
 ) -> StatusCode {
-    let mut index = state.index.lock().unwrap();
+    let mut index = state.index.lock().await;
     
     let Ok(mut section) = index.section_mut(section) else {
         return StatusCode::NOT_FOUND;
@@ -42,7 +42,7 @@ pub async fn unremove_comment(
     State(state): State<AppState>,
     ReqPath((section, uuid)): ReqPath<(u32, u128)>,
 ) -> StatusCode {
-    let mut index = state.index.lock().unwrap();
+    let mut index = state.index.lock().await;
     
     let Ok(mut section) = index.section_mut(section) else {
         return StatusCode::NOT_FOUND;

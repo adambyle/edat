@@ -1,14 +1,11 @@
-use std::{
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::{sync::Arc, time::Instant};
 
 use axum::{
     routing::{delete, get, post},
     Router,
 };
-use data::music::SpotifyCredentials;
-use tokio::net::TcpListener;
+use data::music::{SpotifyCredentials, SpotifyData};
+use tokio::{net::TcpListener, sync::Mutex};
 
 mod data;
 mod html;
@@ -25,12 +22,17 @@ async fn main() {
             index.save_all();
         }
     }
+
+    let mut spotify_credentials = SpotifyCredentials::fresh().await;
+
+    SpotifyData::refresh_file(&index, spotify_credentials.access_token().await.to_owned()).await;
+
     let index_load_elapsed = index_load_start.elapsed();
     println!("Index loaded in {index_load_elapsed:?}");
 
     let state = AppState {
         index: Arc::new(Mutex::new(index)),
-        spotify_credentials: SpotifyCredentials::fresh().await,
+        spotify_credentials: Arc::new(Mutex::new(spotify_credentials)),
     };
 
     let app = Router::new()
@@ -54,6 +56,7 @@ async fn main() {
         .route("/image/:file", post(routes::cmd::image_upload))
         .route("/library", get(routes::pages::volumes))
         .route("/login/:name/:code", post(routes::auth::login))
+        .route("/mir/:month" , get(routes::pages::month_in_review))
         .route("/preferences", post(routes::user::set_preferences))
         .route("/preview", get(routes::files::preview))
         .route("/profile", get(routes::pages::profile))
@@ -111,5 +114,5 @@ async fn listener() -> TcpListener {
 #[derive(Clone)]
 pub struct AppState {
     index: Arc<Mutex<data::Index>>,
-    spotify_credentials: SpotifyCredentials,
+    spotify_credentials: Arc<Mutex<SpotifyCredentials>>,
 }

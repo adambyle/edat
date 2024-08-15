@@ -5,7 +5,7 @@ pub async fn login(
     State(state): State<AppState>,
     ReqPath((name, code)): ReqPath<(String, String)>,
 ) -> Response {
-    let index = state.index.lock().unwrap();
+    let index = state.index.lock().await;
     let name = name.to_lowercase().replace(char::is_whitespace, "");
     let code = code.to_lowercase();
 

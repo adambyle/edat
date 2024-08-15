@@ -4,9 +4,9 @@ use std::{
     path::Path,
 };
 
-use axum::http::Extensions;
 use chrono::{NaiveDate, Utc};
 use indexmap::IndexMap;
+use music::{SpotifyCredentials, SpotifyData};
 use serde::Deserialize;
 
 use super::*;
@@ -167,6 +167,7 @@ pub enum Body {
         genre: Option<String>,
         score: Option<i32>,
         review: Option<String>,
+        summary: Option<String>,
         first_listened: Option<String>,
     },
     SetTrackReview {
@@ -188,7 +189,8 @@ pub async fn cmd(
     Json(body): Json<Body>,
 ) -> Result<Response, maud::Markup> {
     use html::cmd as cmd_html;
-    let mut index = state.index.lock().unwrap();
+    let mut index = state.index.lock().await;
+    let mut spotify_credentials = state.spotify_credentials.lock().await;
 
     let user = get_cookie(&headers, "edat_user").ok_or(cmd_html::unauthorized())?;
 
@@ -197,6 +199,10 @@ pub async fn cmd(
             DataError::DuplicateId(id) => cmd_html::duplicate(id),
             DataError::MissingResource(kind, id) => cmd_html::missing(kind, id),
         })
+    }
+
+    async fn refresh_spotify_data(index: &Index, spotify_credentials: &mut SpotifyCredentials) {
+        SpotifyData::refresh_file(index, spotify_credentials.access_token().await.to_owned()).await;
     }
 
     fn user_info(user: User) -> cmd_html::UserInfo {
@@ -490,6 +496,8 @@ pub async fn cmd(
                     tracks_of_the_month: tracks,
                 });
             }
+            refresh_spotify_data(&index, &mut spotify_credentials).await;
+            index.save_index();
             cmd_html::ok()
         }
         B::SetNewEntry {
@@ -512,6 +520,7 @@ pub async fn cmd(
             genre,
             score,
             review,
+            summary,
             first_listened,
         } => {
             let now = Utc::now().timestamp();
@@ -520,18 +529,28 @@ pub async fn cmd(
                 let existing_rating = existing_album.ratings.last();
                 let existing_score = existing_rating.and_then(|r| r.score);
                 let existing_review = existing_rating.and_then(|r| r.review.clone());
+                let existing_summary = existing_rating.and_then(|r| r.summary.clone());
 
                 let rating = Rating {
                     review: review.or(existing_review),
                     score: score.or(existing_score),
+                    summary: summary.or(existing_summary),
                     reviewed_on: now,
                 };
 
                 existing_album.ratings.push(rating);
+
+                if let Some(first_listened) = first_listened {
+                    existing_album.first_listened = first_listened;
+                }
+                if let Some(genre) = genre {
+                    existing_album.genre = Some(genre);
+                }
             } else {
                 let rating = Rating {
                     review,
                     score,
+                    summary,
                     reviewed_on: now,
                 };
 
@@ -545,7 +564,8 @@ pub async fn cmd(
                     ratings: vec![rating],
                 });
             }
-            index.save_all();
+            refresh_spotify_data(&index, &mut spotify_credentials).await;
+            index.save_index();
             cmd_html::ok()
         }
         B::SetNewSection {
@@ -612,7 +632,8 @@ pub async fn cmd(
                     score,
                 });
             }
-            index.save_all();
+            refresh_spotify_data(&index, &mut spotify_credentials).await;
+            index.save_index();
             cmd_html::ok()
         }
         B::SetUser {
