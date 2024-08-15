@@ -1,0 +1,103 @@
+@import url("/style/universal.css");
+@import url("/style/standard.css");
+
+h2 {
+    text-align: center;
+    font: bold 28px var(--sans);
+    color: var(--content);
+    margin: 48px 24px 6px 24px;
+}
+
+.subtitle {
+    display: block;
+    text-align: center;
+    font: 14px var(--sans);
+    color: var(--gray);
+    margin-bottom: 48px;
+}
+
+#album-review {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 24px;
+}
+
+img {
+    width: 40vw;
+    margin-bottom: 12px;
+    border: 1px solid var(--content);
+}
+
+.album-title {
+    font: bold 28px var(--serif);
+    color: var(--content);
+    font-style: italic;
+}
+
+.album-artist {
+    font: 18px var(--serif);
+    color: var(--gray);
+    margin-bottom: 24px;
+}
+
+.listen {
+    font: 11px var(--sans);
+    color: var(--gray);
+}
+
+#review {
+    width: 100%;
+    
+    & .line {
+        font: 14px var(--serif);
+        line-height: 21px;
+        color: var(--content);
+        margin-bottom: 12px;
+    }
+
+    & .track-embed {
+        & .title {
+            text-decoration: underline;
+        }
+
+        & .score-rating {
+            font-size: inherit!important;
+            font-weight: bold!important;
+            margin-left: 6px!important;
+            display: inline!important;
+
+            & .explanation {
+                display: none;
+            }
+        }
+    }
+}
+
+.score-rating {
+    font: bold 28px var(--serif);
+
+    color: var(--gray);
+
+    &.great {
+        color: var(--content);
+    }
+
+    &.none {
+        color: var(--gray);
+        font-weight: normal;
+    }
+
+    & .explanation {
+        font: 25px var(--serif);
+        margin-left: 12px;
+        font-style: italic;
+    }
+
+    &.perfect {
+        background: linear-gradient(to top left, #fc9d03, #fceb03);
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+}

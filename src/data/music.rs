@@ -4,6 +4,8 @@ use chrono::{NaiveDate, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
+use crate::html::pages::music::track_ids_in_review;
+
 use super::Index;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -86,7 +88,10 @@ pub async fn album_data(album_id: &str, access_token: &str) -> AlbumData {
     }
 
     let response = request.send().await.unwrap();
-    let response: Response = response.json().await.unwrap();
+    let text = response.text().await.unwrap();
+    println!("Response: {text}");
+    let response: Response = serde_json::from_str(&text)
+        .expect(format!("Could not get album data for {album_id}",).as_str());
 
     let release = match response.release_date_precision.deref() {
         "year" => response.release_date.clone(),
@@ -133,30 +138,31 @@ pub async fn track_data(track_id: &str, access_token: &str) -> TrackData {
     struct Album {
         album_type: String,
         name: String,
+        release_date: String,
+        release_date_precision: String,
+        images: Vec<Image>,
     }
 
     #[derive(Deserialize)]
     struct Response {
         name: String,
-        release_date: String,
-        release_date_precision: String,
         album: Album,
         artists: Vec<Artist>,
         external_urls: ExternalUrls,
-        images: Vec<Image>,
     }
 
     let response = request.send().await.unwrap();
+
     let response: Response = response.json().await.unwrap();
 
-    let release = match response.release_date_precision.deref() {
-        "year" => response.release_date.clone(),
+    let release = match response.album.release_date_precision.deref() {
+        "year" => response.album.release_date.clone(),
         "month" => {
-            let date = NaiveDate::parse_from_str(&response.release_date, "%Y-%m").unwrap();
+            let date = NaiveDate::parse_from_str(&response.album.release_date, "%Y-%m").unwrap();
             date.format("%b %Y").to_string()
         }
         "day" => {
-            let date = NaiveDate::parse_from_str(&response.release_date, "%Y-%m-%d").unwrap();
+            let date = NaiveDate::parse_from_str(&response.album.release_date, "%Y-%m-%d").unwrap();
             date.format("%b %d, %Y").to_string()
         }
         _ => unreachable!(),
@@ -169,7 +175,7 @@ pub async fn track_data(track_id: &str, access_token: &str) -> TrackData {
         artist: response.artists[0].name.clone(),
         album: is_album.then_some(response.album.name),
         spotify_link: response.external_urls.spotify,
-        cover_link: response.images[0].url.clone(),
+        cover_link: response.album.images[0].url.clone(),
         release,
     }
 }
@@ -244,42 +250,42 @@ pub struct SpotifyData {
 
 impl SpotifyData {
     pub async fn refresh_file(index: &Index, access_token: String) -> Self {
-        let mut unresolved_albums = HashMap::new();
-        let mut unresolved_tracks = HashMap::new();
+        let data = tokio::fs::read_to_string("content/spotify.json")
+            .await
+            .unwrap();
+        let mut data: Self = serde_json::from_str(&data).unwrap();
 
         let track_regex = Regex::new("%(.+?)%").unwrap();
 
         for track in &index.tracks {
             let access_token = access_token.clone();
             let id = track.spotify_id.clone();
-            unresolved_tracks.insert(
-                track.spotify_id.clone(),
-                tokio::spawn(async move { track_data(&id, &access_token).await }),
-            );
+            if (!data.tracks.contains_key(&id)) {
+                let track_data = track_data(&id, &access_token).await;
+                data.tracks.insert(id, track_data);
+            }
         }
 
         for album in &index.albums {
             {
                 let access_token = access_token.clone();
                 let id = album.spotify_id.clone();
-                unresolved_albums.insert(
-                    album.spotify_id.clone(),
-                    tokio::spawn(async move { album_data(&id, &access_token).await }),
-                );
+                if (!data.albums.contains_key(&id)) {
+                    let album_data = album_data(&id, &access_token).await;
+                    data.albums.insert(id, album_data);
+                }
             }
 
             if let Some(review) = album.ratings.last().and_then(|r| r.review.as_ref()) {
-                for capture in track_regex.captures_iter(review) {
+                for track_id in track_ids_in_review(review) {
                     let access_token = access_token.clone();
-                    let track_id = capture.get(0).unwrap().as_str().to_owned();
 
-                    unresolved_tracks
-                        .entry(track_id.clone())
-                        .or_insert_with(|| {
-                            tokio::spawn(async move {
-                                track_data(&track_id, &access_token).await
-                            })
-                        });
+                    if (!data.tracks.contains_key(&track_id)) {
+                        println!("From review: {}", &track_id);
+
+                        let track_data = track_data(&track_id, &access_token).await;
+                        data.tracks.insert(track_id, track_data);
+                    }
                 }
             }
         }
@@ -288,28 +294,13 @@ impl SpotifyData {
             for track in &month.tracks_of_the_month {
                 let access_token = access_token.clone();
                 let track = track.clone();
-                unresolved_tracks.entry(
-                    track.clone()).or_insert_with(
-                    || tokio::spawn(async move { track_data(&track, &access_token).await }),
-                );
+
+                if (!data.tracks.contains_key(&track)) {
+                    let track_data = track_data(&track, &access_token).await;
+                    data.tracks.insert(track, track_data);
+                }
             }
         }
-
-        let mut albums = HashMap::new();
-        for (id, album) in unresolved_albums {
-            albums.insert(id, album.await.unwrap());
-        }
-
-        let mut tracks = HashMap::new();
-        for (id, track) in unresolved_tracks {
-            tracks.insert(id, track.await.unwrap());
-        }
-
-        let data = Self {
-            albums,
-            tracks,
-            last_updated: Utc::now().timestamp(),
-        };
 
         tokio::fs::write(
             "content/spotify.json",

@@ -120,11 +120,6 @@ h3.section-header {
             color: var(--gray);
             margin-right: 24px;
         }
-
-        & .album-genre {
-            font: 14px var(--sans);
-            color: var(--gray);
-        }
     }
 
     & .album-inline {

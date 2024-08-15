@@ -113,6 +113,20 @@ pub async fn month_in_review(
     ))
 }
 
+pub async fn album_review(
+    headers: HeaderMap,
+    Path(album): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Response, Markup> {
+    let mut spotify_credentials = state.spotify_credentials.lock().await;
+    let access_token = spotify_credentials.access_token().await;
+    let index = state.index.lock().await;
+
+    Ok(no_cache(
+        html::pages::music::album_review(&index, album, access_token, &headers).await,
+    ))
+}
+
 pub async fn history(
     headers: HeaderMap,
     State(state): State<AppState>,

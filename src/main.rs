@@ -37,6 +37,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(routes::pages::home))
+        .route("/album/:id", get(routes::pages::album_review))
         .route("/archive", get(routes::files::archive))
         .route("/asset/:file", get(routes::files::asset))
         .route("/cmd", post(routes::cmd::cmd))
