@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 axum = { version = "0.7.5", features = ["json"] }
 chrono = { version = "0.4.38", features = ["now"] }
+openssl = { version = "0.10", features = ["vendored"] }
 image-builder = "1.0.0"
 indexmap = "2.2.6"
 levenshtein = "1.0.5"

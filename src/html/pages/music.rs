@@ -58,8 +58,11 @@ pub async fn music(index: &Index, access_token: &str, headers: &HeaderMap) -> Ma
                 p.footer { "See runners-up and tracks of the month" }
             }
         };
-        months_in_review_html.push(html);
+        months_in_review_html.push((html, review.year, review.month));
     }
+
+    months_in_review_html.sort_by_key(|(_, y, m)| (y, m));
+    months_in_review_html.reverse();
 
     let mut albums = index.albums.clone();
     albums.sort_by_key(|a| NaiveDate::parse_from_str(&a.first_listened, "%Y-%m-%d").unwrap());
@@ -117,7 +120,7 @@ pub async fn music(index: &Index, access_token: &str, headers: &HeaderMap) -> Ma
         h2 { "Music reviews" }
         #months-in-review {
             @for review in months_in_review_html {
-                (review)
+                (review.0)
             }
         }
         h3.section-header { "Recent albums" }
