@@ -34,7 +34,7 @@ pub async fn register(
 
     // Update the user's history and widget preferences.
     let user_id = {
-        let Ok(user) = auth::get_user(&headers, &index, None, false) else {
+        let Ok(user) = auth::get_user_uninit(&headers, &index, None, false) else {
             return;
         };
         user.id().to_owned()

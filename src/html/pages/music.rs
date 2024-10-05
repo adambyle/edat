@@ -61,7 +61,7 @@ pub async fn music(index: &Index, access_token: &str, headers: &HeaderMap) -> Ma
         months_in_review_html.push((html, review.year, review.month));
     }
 
-    months_in_review_html.sort_by_key(|(_, y, m)| (y, m));
+    months_in_review_html.sort_by_key(|(_, y, m)| (*y, *m));
     months_in_review_html.reverse();
 
     let mut albums = index.albums.clone();

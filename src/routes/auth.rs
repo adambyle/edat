@@ -43,3 +43,24 @@ pub(super) fn get_user<'index>(
 
     Ok(user)
 }
+
+/// Get the user information from the request. The user does not
+/// need to be initialized.
+/// 
+/// Returns an error wrapping either the login page or the setup page
+/// if either is needed.
+pub(super) fn get_user_uninit<'index>(
+    headers: &HeaderMap,
+    index: &'index Index,
+    title: Option<String>,
+    show_panel: bool,
+) -> Result<User<'index>, maud::Markup> {
+    // Get the user.
+    let user = get_cookie(headers, "edat_user").and_then(|u| index.user(u.to_owned()).ok());
+    
+    let Some(user) = user else {
+        return Err(html::pages::login(headers, title, show_panel));
+    };
+
+    Ok(user)
+}
